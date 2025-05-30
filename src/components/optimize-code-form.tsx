@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -8,7 +9,6 @@ import { Zap, Sparkles, Save, Gauge } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,6 +40,7 @@ export function OptimizeCodeForm() {
     defaultValues: {
       codeSnippet: '',
       language: DEFAULT_LANGUAGE,
+      snippetName: '',
     },
   });
 
@@ -149,51 +150,51 @@ export function OptimizeCodeForm() {
               )}
               Optimize Code
             </Button>
+            
+            {optimizationResult && (
+              <div className="mt-8 space-y-6 pt-4 border-t">
+                <div>
+                  <h3 className="text-xl font-semibold mb-2">Optimized Code:</h3>
+                  <CodeDisplay code={optimizationResult.optimizedCode} language={form.getValues("language")} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold mb-2">Explanation:</h3>
+                  <p className="prose prose-sm max-w-none p-3 border rounded-md bg-secondary/30">{optimizationResult.explanation}</p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 items-end">
+                  <FormField
+                    control={form.control}
+                    name="snippetName"
+                    render={({ field }) => (
+                      <FormItem className="flex-grow">
+                        <FormLabel>Snippet Name (Optional)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Base name for saved snippets" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex gap-2 flex-wrap">
+                    <Button onClick={() => handleSaveSnippet(form.getValues("codeSnippet"), 'original')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out">
+                      <Save className="mr-2 h-4 w-4" />
+                      Save Original
+                    </Button>
+                    <Button onClick={() => handleSaveSnippet(optimizationResult.optimizedCode, 'optimized')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out">
+                      <Save className="mr-2 h-4 w-4" />
+                      Save Optimized
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </form>
         </Form>
 
-        {isLoading && (
+        {isLoading && !optimizationResult && (
           <div className="mt-6 flex flex-col items-center justify-center space-y-2 text-muted-foreground">
             <Sparkles className="h-8 w-8 animate-pulse text-primary" />
             <p>Optimizing your code brick...</p>
-          </div>
-        )}
-
-        {optimizationResult && (
-          <div className="mt-8 space-y-6">
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Optimized Code:</h3>
-              <CodeDisplay code={optimizationResult.optimizedCode} language={form.getValues("language")} />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Explanation:</h3>
-              <p className="prose prose-sm max-w-none p-3 border rounded-md bg-secondary/30">{optimizationResult.explanation}</p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2 items-end">
-              <FormField
-                control={form.control}
-                name="snippetName"
-                render={({ field }) => (
-                  <FormItem className="flex-grow">
-                    <FormLabel>Snippet Name (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Base name for saved snippets" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="flex gap-2 flex-wrap">
-                <Button onClick={() => handleSaveSnippet(form.getValues("codeSnippet"), 'original')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out">
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Original
-                </Button>
-                <Button onClick={() => handleSaveSnippet(optimizationResult.optimizedCode, 'optimized')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out">
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Optimized
-                </Button>
-              </div>
-            </div>
           </div>
         )}
       </CardContent>

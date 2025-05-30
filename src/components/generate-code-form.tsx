@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -8,7 +9,6 @@ import { Wand2, Sparkles, Save } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-// Removed Label as FormLabel from FormField will be used
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -42,7 +42,8 @@ export function GenerateCodeForm() {
     defaultValues: {
       prompt: '',
       language: DEFAULT_LANGUAGE,
-      aiModel: 'gemini', // Default AI model
+      aiModel: 'gemini',
+      snippetName: '',
     },
   });
 
@@ -155,7 +156,7 @@ export function GenerateCodeForm() {
                       <ModelSelector 
                         onValueChange={field.onChange}
                         value={field.value}
-                        showLabel={false} // FormField provides the label
+                        showLabel={false} 
                       />
                     </FormControl>
                     <FormMessage />
@@ -172,39 +173,39 @@ export function GenerateCodeForm() {
               )}
               Generate Code
             </Button>
+
+            {generatedCode && (
+              <div className="mt-8 space-y-4 pt-4 border-t">
+                <h3 className="text-xl font-semibold">Generated Code:</h3>
+                <CodeDisplay code={generatedCode} language={form.getValues("language")} />
+                <div className="flex flex-col sm:flex-row gap-2 items-end">
+                    <FormField
+                      control={form.control}
+                      name="snippetName"
+                      render={({ field }) => (
+                        <FormItem className="flex-grow">
+                          <FormLabel>Snippet Name (Optional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter a name for this snippet" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button onClick={handleSaveSnippet} variant="outline" className="animate-pop-out hover:pop-out active:pop-out">
+                      <Save className="mr-2 h-4 w-4" />
+                      Save Snippet
+                    </Button>
+                  </div>
+              </div>
+            )}
           </form>
         </Form>
 
-        {isLoading && (
+        {isLoading && !generatedCode && (
           <div className="mt-6 flex flex-col items-center justify-center space-y-2 text-muted-foreground">
             <Sparkles className="h-8 w-8 animate-pulse text-primary" />
             <p>Generating your code brick...</p>
-          </div>
-        )}
-
-        {generatedCode && (
-          <div className="mt-8 space-y-4">
-            <h3 className="text-xl font-semibold">Generated Code:</h3>
-            <CodeDisplay code={generatedCode} language={form.getValues("language")} />
-            <div className="flex flex-col sm:flex-row gap-2 items-end">
-                <FormField
-                  control={form.control}
-                  name="snippetName"
-                  render={({ field }) => (
-                    <FormItem className="flex-grow">
-                      <FormLabel>Snippet Name (Optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter a name for this snippet" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button onClick={handleSaveSnippet} variant="outline" className="animate-pop-out hover:pop-out active:pop-out">
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Snippet
-                </Button>
-              </div>
           </div>
         )}
       </CardContent>

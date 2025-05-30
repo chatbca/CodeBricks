@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -8,7 +9,6 @@ import { BookOpenText, Sparkles, Save } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-// Removed Label as FormLabel from FormField will be used
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,7 +41,8 @@ export function ExplainCodeForm() {
     defaultValues: {
       codeSnippet: '',
       programmingLanguage: DEFAULT_LANGUAGE,
-      aiModel: 'gemini', // Default AI model
+      aiModel: 'gemini',
+      snippetName: '',
     },
   });
 
@@ -157,7 +158,7 @@ export function ExplainCodeForm() {
                       <ModelSelector
                         onValueChange={field.onChange}
                         value={field.value}
-                        showLabel={false} // FormField provides the label
+                        showLabel={false}
                       />
                     </FormControl>
                     <FormMessage />
@@ -174,41 +175,41 @@ export function ExplainCodeForm() {
               )}
               Explain Code
             </Button>
+
+            {explanation && (
+              <div className="mt-8 space-y-4 pt-4 border-t">
+                <h3 className="text-xl font-semibold">Explanation:</h3>
+                <div className="prose prose-sm max-w-none p-4 border rounded-md bg-secondary/30">
+                  <p>{explanation}</p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 items-end">
+                    <FormField
+                      control={form.control}
+                      name="snippetName"
+                      render={({ field }) => (
+                        <FormItem className="flex-grow">
+                          <FormLabel>Snippet Name (Optional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Name for the original code" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  <Button onClick={handleSaveSnippet} variant="outline" className="animate-pop-out hover:pop-out active:pop-out">
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Original Code
+                  </Button>
+                </div>
+              </div>
+            )}
           </form>
         </Form>
 
-        {isLoading && (
+        {isLoading && !explanation && (
           <div className="mt-6 flex flex-col items-center justify-center space-y-2 text-muted-foreground">
             <Sparkles className="h-8 w-8 animate-pulse text-primary" />
             <p>Analyzing your code brick...</p>
-          </div>
-        )}
-
-        {explanation && (
-          <div className="mt-8 space-y-4">
-            <h3 className="text-xl font-semibold">Explanation:</h3>
-            <div className="prose prose-sm max-w-none p-4 border rounded-md bg-secondary/30">
-              <p>{explanation}</p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2 items-end">
-                <FormField
-                  control={form.control}
-                  name="snippetName"
-                  render={({ field }) => (
-                    <FormItem className="flex-grow">
-                      <FormLabel>Snippet Name (Optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Name for the original code" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              <Button onClick={handleSaveSnippet} variant="outline" className="animate-pop-out hover:pop-out active:pop-out">
-                <Save className="mr-2 h-4 w-4" />
-                Save Original Code
-              </Button>
-            </div>
           </div>
         )}
       </CardContent>
