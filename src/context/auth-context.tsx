@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error.code === 'auth/unauthorized-domain') {
         toastTitle = "Unauthorized Domain";
-        let currentOrigin = 'your application domain (e.g., localhost or your-project.firebasestudio.com)';
+        let currentOrigin = 'your application domain';
         if (typeof window !== 'undefined') {
           currentOrigin = window.location.origin;
         }
@@ -61,8 +61,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: toastDescription,
         duration: 9000, // Give more time to read the detailed message
       });
-      setLoading(false);
+      // setLoading(false) will be handled by onAuthStateChanged if sign-in fails early
+      // If it's a user cancellation, user state won't change, so loading should be reset.
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        setLoading(false);
+      }
     }
+    // setLoading(false) is typically handled by onAuthStateChanged, 
+    // but for pop-up closed by user, auth state might not change, so we ensure loading is false.
+    // However, if an actual error occurs before onAuthStateChanged triggers, setLoading(false) might be missed.
+    // Let onAuthStateChanged primarily handle setLoading(false) on user state changes.
   };
 
   const signOutUser = async () => {
@@ -96,3 +104,4 @@ export function useAuth() {
   }
   return context;
 }
+
