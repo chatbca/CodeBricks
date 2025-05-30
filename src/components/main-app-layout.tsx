@@ -21,9 +21,11 @@ import { OptimizeCodeForm } from '@/components/optimize-code-form';
 import { SavedSnippetsManager } from '@/components/saved-snippets-manager';
 import { ChatView } from '@/components/chat-view';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button'; // Ensure Button is imported
-
-import { MessageSquare, Wand2, BookOpenText, Bug, Zap, Archive, Settings } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useAuth } from '@/context/auth-context';
+import { LogIn, LogOut, User as UserIcon, Settings, MessageSquare, Wand2, BookOpenText, Bug, Zap, Archive, Loader2 } from 'lucide-react';
 
 type FeatureKey = 'chat' | 'generate' | 'explain' | 'fix' | 'optimize' | 'saved';
 
@@ -61,10 +63,56 @@ function FeatureLoadingSkeleton() {
 
 
 export function MainAppLayout() {
-  const [activeFeatureKey, setActiveFeatureKey] = useState<FeatureKey>('chat'); // Default to chat
+  const [activeFeatureKey, setActiveFeatureKey] = useState<FeatureKey>('chat');
+  const { user, loading: authLoading, signInWithGoogle, signOutUser } = useAuth();
 
   const activeNavItem = navItems.find(item => item.key === activeFeatureKey);
-  const ActiveFeatureComponent = activeNavItem ? activeNavItem.component : ChatView; // Fallback to chat
+  const ActiveFeatureComponent = activeNavItem ? activeNavItem.component : ChatView;
+
+  const UserAuthDisplay = () => {
+    if (authLoading) {
+      return <Button variant="ghost" size="icon" disabled><Loader2 className="h-5 w-5 animate-spin" /></Button>;
+    }
+
+    if (user) {
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="rounded-full h-10 w-10 p-0 animate-pop-out hover:pop-out active:pop-out">
+              <Avatar className="h-8 w-8">
+                {user.photoURL && <AvatarImage src={user.photoURL} alt={user.displayName || 'User'} />}
+                <AvatarFallback>{user.displayName ? user.displayName.charAt(0).toUpperCase() : <UserIcon size={18}/>}</AvatarFallback>
+              </Avatar>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>
+              <p className="font-medium">{user.displayName || "User"}</p>
+              <p className="text-xs text-muted-foreground">{user.email}</p>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => {/* TODO: Navigate to profile or settings */}}>
+              <Settings className="mr-2 h-4 w-4" />
+              <span>Settings</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={signOutUser} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Sign Out</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    }
+
+    return (
+      <Button onClick={signInWithGoogle} variant="outline" className="animate-pop-out hover:pop-out active:pop-out">
+        <LogIn className="mr-2 h-4 w-4" />
+        Sign In with Google
+      </Button>
+    );
+  };
+
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -89,19 +137,16 @@ export function MainAppLayout() {
             ))}
           </SidebarMenu>
         </SidebarContent>
-        {/* SidebarFooter could be added here if needed */}
       </Sidebar>
-      <SidebarInset> {/* This is already flex flex-col */}
-        <div className="p-2 md:p-4 border-b bg-background sticky top-0 z-10 flex items-center justify-between md:justify-end">
+      <SidebarInset>
+        <div className="p-2 md:p-4 border-b bg-background sticky top-0 z-10 flex items-center justify-between">
           <div className="md:hidden">
              <SidebarTrigger />
           </div>
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground animate-pop-out hover:pop-out active:pop-out">
-            <Settings />
-            <span className="sr-only">Settings</span>
-          </Button>
+          <div className="flex items-center gap-2 ml-auto"> {/* Ensures auth display is on the right */}
+            <UserAuthDisplay />
+          </div>
         </div>
-        {/* This main content area needs to be flex and allow its child (ActiveFeatureComponent) to grow */}
         <main className="flex flex-col flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto min-h-0">
           <Suspense fallback={<FeatureLoadingSkeleton />}>
             <ActiveFeatureComponent />

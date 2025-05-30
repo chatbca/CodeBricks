@@ -2,8 +2,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { MessageSquare, Send, User, Bot, Sparkles, Paperclip, Mic, StopCircle, X } from 'lucide-react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { MessageSquare, Send, User, Bot, Sparkles, Paperclip, Mic, StopCircle, X, AlertTriangle } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // Added AvatarImage
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -12,13 +12,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from '@/lib/utils';
 import { chatWithAi } from '@/ai/flows/chat-with-ai-flow';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/context/auth-context'; // Added useAuth
 
 interface Message {
   id: string;
-  text?: string; // Text can be optional if only image/audio
+  text?: string;
   sender: 'user' | 'ai';
   timestamp: Date;
-  imageDataUri?: string; // For user messages with images
+  imageDataUri?: string;
 }
 
 export function ChatView() {
@@ -36,6 +37,7 @@ export function ChatView() {
   const audioChunksRef = useRef<Blob[]>([]);
 
   const { toast } = useToast();
+  const { user, signInWithGoogle } = useAuth(); // Get user and signInWithGoogle from auth context
 
   const requestMicrophonePermission = useCallback(async () => {
     try {
@@ -68,8 +70,25 @@ export function ChatView() {
 
 
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Required",
+        description: "Please sign in to attach images.",
+        action: <Button onClick={signInWithGoogle}>Sign In</Button>
+      });
+      return;
+    }
     const file = event.target.files?.[0];
     if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast({
+          variant: "destructive",
+          title: "Image Too Large",
+          description: "Please select an image smaller than 5MB.",
+        });
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         setSelectedImage(reader.result as string);
@@ -79,6 +98,15 @@ export function ChatView() {
   };
 
   const startRecording = async () => {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Required",
+        description: "Please sign in to record audio.",
+        action: <Button onClick={signInWithGoogle}>Sign In</Button>
+      });
+      return;
+    }
     let permissionGranted = hasMicrophonePermission;
     if (permissionGranted === null || !permissionGranted) {
         permissionGranted = await requestMicrophonePermission();
@@ -96,7 +124,7 @@ export function ChatView() {
       };
 
       mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' }); // Consider audio format for Gemini
         const reader = new FileReader();
         reader.onloadend = () => {
           setRecordedAudioDataUri(reader.result as string);
@@ -129,7 +157,7 @@ export function ChatView() {
     if (isRecording) {
       stopRecording();
     } else {
-      startRecording();
+      startRecording(); // Auth check is inside startRecording
     }
   };
   
@@ -146,7 +174,6 @@ export function ChatView() {
            return;
         }
     }
-
 
     if (!textToSend && !imageToSend && !audioToSend) {
       return;
@@ -241,7 +268,7 @@ export function ChatView() {
             <MessageSquare className="h-8 w-8 text-primary" />
             <div>
               <CardTitle className="text-2xl font-semibold">Chat with CodeBricks AI</CardTitle>
-              <CardDescription>Ask code-related questions and get assistance.</CardDescription>
+              <CardDescription>Ask questions, attach images, or send audio. Considers history.</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -261,7 +288,7 @@ export function ChatView() {
           <MessageSquare className="h-8 w-8 text-primary" />
           <div>
             <CardTitle className="text-2xl font-semibold">Chat with CodeBricks AI</CardTitle>
-            <CardDescription>Ask questions, attach images, or send audio. Considers history.</CardDescription>
+            <CardDescription>Ask questions. Sign in to attach images or send audio. Considers history.</CardDescription>
           </div>
         </div>
       </CardHeader>
@@ -302,6 +329,7 @@ export function ChatView() {
                 </div>
                 {msg.sender === 'user' && (
                   <Avatar className="h-8 w-8">
+                    {user && user.photoURL ? <AvatarImage src={user.photoURL} /> : null}
                     <AvatarFallback><User size={18} /></AvatarFallback>
                   </Avatar>
                 )}
@@ -352,31 +380,55 @@ export function ChatView() {
               </AlertDescription>
             </Alert>
         )}
+        
+        {!user && (isRecording || selectedImage || recordedAudioDataUri) && (
+          <Alert variant="warning" className="m-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Sign In Required</AlertTitle>
+            <AlertDescription>
+              Please <Button variant="link" className="p-0 h-auto" onClick={signInWithGoogle}>sign in</Button> to send messages with attachments or audio.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="p-4 border-t bg-background"> 
           <div className="flex items-center space-x-2">
             <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} className="hidden" />
-            <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} disabled={isLoading || isRecording} className="animate-pop-out hover:pop-out">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => user ? fileInputRef.current?.click() : handleImageSelect({} as any)} // Trigger auth check
+              disabled={isLoading || isRecording} 
+              className="animate-pop-out hover:pop-out"
+              aria-label={user ? "Attach image" : "Attach image (sign in required)"}
+            >
               <Paperclip className="h-5 w-5" />
               <span className="sr-only">Attach image</span>
             </Button>
-            <Button variant="ghost" size="icon" onClick={handleToggleRecording} disabled={isLoading || (hasMicrophonePermission === false)} className={cn("animate-pop-out hover:pop-out", isRecording && "text-destructive")}>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={handleToggleRecording} // Auth check is inside startRecording
+              disabled={isLoading || (hasMicrophonePermission === false && !user)} 
+              className={cn("animate-pop-out hover:pop-out", isRecording && "text-destructive")}
+              aria-label={user ? (isRecording ? 'Stop recording' : 'Start recording') : 'Start recording (sign in required)'}
+            >
               {isRecording ? <StopCircle className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
               <span className="sr-only">{isRecording ? 'Stop recording' : 'Start recording'}</span>
             </Button>
             <Input
               type="text"
-              placeholder={isRecording ? "Recording audio..." : "Type your message..."}
+              placeholder={isRecording ? "Recording audio..." : (user ? "Type your message..." : "Sign in to chat...")}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && canSend && handleSendMessage()}
               className="flex-grow"
-              disabled={isLoading || isRecording}
+              disabled={isLoading || isRecording || !user}
             />
             <Button 
               onClick={handleSendMessage} 
               className="animate-pop-out hover:pop-out active:pop-out" 
-              disabled={!canSend}
+              disabled={!canSend || !user}
             >
               {isLoading ? (
                 <Sparkles className="h-4 w-4 animate-spin mr-2" />
