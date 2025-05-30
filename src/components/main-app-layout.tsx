@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, Suspense } from 'react';
@@ -20,7 +21,7 @@ import { OptimizeCodeForm } from '@/components/optimize-code-form';
 import { SavedSnippetsManager } from '@/components/saved-snippets-manager';
 import { ChatView } from '@/components/chat-view';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/button'; // Ensure Button is imported
 
 import { MessageSquare, Wand2, BookOpenText, Bug, Zap, Archive, Settings } from 'lucide-react';
 
@@ -60,10 +61,10 @@ function FeatureLoadingSkeleton() {
 
 
 export function MainAppLayout() {
-  const [activeFeatureKey, setActiveFeatureKey] = useState<FeatureKey>('generate');
+  const [activeFeatureKey, setActiveFeatureKey] = useState<FeatureKey>('chat'); // Default to chat
 
   const activeNavItem = navItems.find(item => item.key === activeFeatureKey);
-  const ActiveFeatureComponent = activeNavItem ? activeNavItem.component : GenerateCodeForm; // Fallback
+  const ActiveFeatureComponent = activeNavItem ? activeNavItem.component : ChatView; // Fallback to chat
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -90,18 +91,18 @@ export function MainAppLayout() {
         </SidebarContent>
         {/* SidebarFooter could be added here if needed */}
       </Sidebar>
-      <SidebarInset>
+      <SidebarInset> {/* This is already flex flex-col */}
         <div className="p-2 md:p-4 border-b bg-background sticky top-0 z-10 flex items-center justify-between md:justify-end">
           <div className="md:hidden">
              <SidebarTrigger />
           </div>
-          {/* Placeholder for settings or user profile */}
           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground animate-pop-out hover:pop-out active:pop-out">
             <Settings />
             <span className="sr-only">Settings</span>
           </Button>
         </div>
-        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
+        {/* This main content area needs to be flex and allow its child (ActiveFeatureComponent) to grow */}
+        <main className="flex flex-col flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto min-h-0">
           <Suspense fallback={<FeatureLoadingSkeleton />}>
             <ActiveFeatureComponent />
           </Suspense>
@@ -110,4 +111,3 @@ export function MainAppLayout() {
     </SidebarProvider>
   );
 }
-

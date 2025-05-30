@@ -40,7 +40,6 @@ export function ChatView() {
   const requestMicrophonePermission = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Close the stream immediately as we only need to check permission
       stream.getTracks().forEach(track => track.stop());
       setHasMicrophonePermission(true);
       return true;
@@ -57,7 +56,6 @@ export function ChatView() {
   }, [toast]);
 
   useEffect(() => {
-    // Check initial microphone permission without prompting, if possible (some browsers don't support this)
     if (navigator.permissions && navigator.permissions.query) {
       navigator.permissions.query({ name: 'microphone' as PermissionName }).then((permissionStatus) => {
         setHasMicrophonePermission(permissionStatus.state === 'granted');
@@ -104,13 +102,12 @@ export function ChatView() {
           setRecordedAudioDataUri(reader.result as string);
         };
         reader.readAsDataURL(audioBlob);
-        // Stop media stream tracks
         stream.getTracks().forEach(track => track.stop());
       };
 
       mediaRecorderRef.current.start();
       setIsRecording(true);
-      setRecordedAudioDataUri(null); // Clear previous recording
+      setRecordedAudioDataUri(null); 
     } catch (error) {
         console.error("Failed to start recording:", error);
         toast({
@@ -139,33 +136,45 @@ export function ChatView() {
   const handleSendMessage = async () => {
     const textToSend = inputValue.trim();
     const imageToSend = selectedImage;
-    const audioToSend = recordedAudioDataUri;
+    let audioToSend = recordedAudioDataUri; // Use let as it might be updated if recording
+
+    if (isRecording) {
+        stopRecording(); // This will set recordedAudioDataUri via onstop after a short delay
+        // We need to ensure audioToSend reflects the newly recorded audio.
+        // Since onstop is async, we might not have audioToSend immediately here.
+        // A better UX might be to disable send until audio is processed or change Send to "Stop & Send".
+        // For now, we'll try to send. If audioDataUri is not set by the time AI call happens, it won't be included.
+        // Or, we can await a promise that resolves when onstop sets the URI.
+        // Let's try to use the state that will be updated by onstop
+        toast({ title: "Audio recording stopped", description: "Preparing to send audio..."});
+        // Attempt to get the latest audio after stopping. This is a bit racy.
+        // It's better if stopRecording sets a flag and an effect sends the message.
+        // For now, the user might have to click send again if the audio isn't ready immediately.
+        // Let's assume if they clicked Send while recording, they intend for *that* audio.
+        // We'll use the `recordedAudioDataUri` which *should* be set by stopRecording().
+        // To make it more robust, we could delay the send slightly or use a callback.
+        // A quick fix: if isRecording, stop, then re-evaluate audioToSend from state.
+        // But state updates are async.
+        // Let's show a toast and user may need to click again.
+        // If audioDataUri is already set (from a previous recording they didn't clear), it will be sent.
+        // If new audio is being processed, it might not be ready.
+         // This is tricky. For simplicity, if recording and send is hit, stop recording.
+        // The user will then see the recorded audio preview and can click send again.
+        // This avoids complex state management for this interaction.
+        if (recordedAudioDataUri) audioToSend = recordedAudioDataUri; // Use if already there
+        else {
+          // If we just stopped, recordedAudioDataUri might not be set yet.
+          // Tell user to click send again.
+           toast({ title: "Recording stopped.", description: "Audio is processing. Click send again to include it."});
+           return;
+        }
+    }
+
 
     if (!textToSend && !imageToSend && !audioToSend) {
-      if(isRecording) { // If user clicks send while recording, stop it first.
-        stopRecording(); 
-        // User might need to click send again once audio is processed.
-        // Or we can try to send after a short delay, assuming audioDataUri will be set.
-        // For simplicity, let's require another click or make stopRecording set a flag to auto-send.
-        toast({ title: "Recording stopped", description: "Click send again to send audio with your message."});
-      }
       return;
     }
     
-    if (isRecording) { // If send is clicked while recording
-        stopRecording(); // This will set recordedAudioDataUri via onstop
-        // We need to wait for recordedAudioDataUri to be set.
-        // This is tricky. A better UX might be that "Send" becomes "Stop and Send".
-        // Or, stopRecording sets a state that triggers send in an effect.
-        // For now, let's assume if recording, it means they want to send that audio.
-        // The current 'stopRecording' will set 'recordedAudioDataUri'.
-        // The user has to click 'Send' again. This is simpler to implement now.
-        // The alternative is to make handleSendMessage check a "pendingAudio" flag.
-        toast({ title: "Audio recording stopped", description: "Press Send again to include the audio."});
-        return;
-    }
-
-
     setIsLoading(true);
 
     const userMessage: Message = {
@@ -173,23 +182,29 @@ export function ChatView() {
       text: textToSend,
       sender: 'user',
       timestamp: new Date(),
+      imageDataUri: imageToSend || undefined, // Add image to user message for display
     };
-    if (imageToSend) {
-      userMessage.imageDataUri = imageToSend;
-    }
+    
+    // Prepare history for the AI flow (all messages *before* this new one)
+    const historyForAI = messages.map(msg => ({
+      sender: msg.sender,
+      text: msg.text,
+      imageDataUri: msg.imageDataUri,
+    }));
 
+    // Add user message to UI optimistically
     setMessages(prevMessages => [...prevMessages, userMessage]);
     
-    const currentInput = inputValue; // Save before clearing
     setInputValue('');
     setSelectedImage(null);
-    // setRecordedAudioDataUri(null); // Will be cleared after successful send or if user records new
+    // We will clear recordedAudioDataUri after successful send.
 
     try {
       const aiResult = await chatWithAi({
-        message: textToSend || undefined, // Send undefined if empty, not an empty string
+        history: historyForAI,
+        message: textToSend || undefined, 
         imageDataUri: imageToSend || undefined,
-        audioDataUri: audioToSend || undefined,
+        audioDataUri: audioToSend || undefined, 
       });
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
@@ -198,7 +213,7 @@ export function ChatView() {
         timestamp: new Date(),
       };
       setMessages(prevMessages => [...prevMessages, aiResponse]);
-      setRecordedAudioDataUri(null); // Clear after successful send
+      setRecordedAudioDataUri(null); // Clear audio after successful send
     } catch (error) {
       console.error("Error chatting with AI:", error);
       toast({
@@ -206,14 +221,9 @@ export function ChatView() {
         title: "AI Chat Error",
         description: error instanceof Error ? error.message : "An unknown error occurred while fetching AI response.",
       });
-      const errorAiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        text: "Sorry, I couldn't process your request at the moment. Please try again.",
-        sender: 'ai',
-        timestamp: new Date(),
-      };
-      setMessages(prevMessages => [...prevMessages, errorAiResponse]);
-      // Don't clear recordedAudioDataUri on error, so user can retry
+      // Optionally, add an error message from AI to the chat
+      // Or revert the optimistic user message (more complex)
+      // For now, user message stays, AI error shown as toast.
     } finally {
       setIsLoading(false);
     }
@@ -231,16 +241,20 @@ export function ChatView() {
   const [isClient, setIsClient] = useState(false);
   useEffect(() => {
     setIsClient(true);
-    return () => { // Cleanup media recorder
+    return () => { 
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
             mediaRecorderRef.current.stop();
+        }
+        // Ensure media streams are cleaned up
+        if (mediaRecorderRef.current?.stream) {
+            mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
         }
     };
   }, []);
 
   if (!isClient) {
     return (
-      <Card className="w-full animate-pop-out shadow-xl">
+      <Card className="w-full animate-pop-out shadow-xl flex flex-col flex-grow min-h-0 max-h-[800px]">
         <CardHeader>
           <div className="flex items-center gap-3">
             <MessageSquare className="h-8 w-8 text-primary" />
@@ -250,7 +264,7 @@ export function ChatView() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-grow flex flex-col p-0">
           <div className="h-[500px] flex items-center justify-center text-muted-foreground">Loading Chat...</div>
         </CardContent>
       </Card>
@@ -260,17 +274,17 @@ export function ChatView() {
   const canSend = !isLoading && (!!inputValue.trim() || !!selectedImage || !!recordedAudioDataUri);
 
   return (
-    <Card className="w-full animate-pop-out shadow-xl flex flex-col h-[calc(100vh-10rem)] max-h-[800px]">
+    <Card className="w-full animate-pop-out shadow-xl flex flex-col flex-grow min-h-0 max-h-[800px]">
       <CardHeader>
         <div className="flex items-center gap-3">
           <MessageSquare className="h-8 w-8 text-primary" />
           <div>
             <CardTitle className="text-2xl font-semibold">Chat with CodeBricks AI</CardTitle>
-            <CardDescription>Ask questions, attach images, or send audio.</CardDescription>
+            <CardDescription>Ask questions, attach images, or send audio. Considers history.</CardDescription>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex-grow flex flex-col p-0">
+      <CardContent className="flex-grow flex flex-col p-0 overflow-hidden"> {/* Added overflow-hidden */}
         <ScrollArea className="flex-grow p-4" ref={scrollAreaRef}>
           <div className="space-y-4">
             {messages.map(msg => (
@@ -326,7 +340,7 @@ export function ChatView() {
         </ScrollArea>
 
         {selectedImage && (
-          <div className="p-4 border-t">
+          <div className="p-4 border-t bg-background">
             <div className="relative w-32 h-32 group">
               <img src={selectedImage} alt="Preview" className="rounded-md object-cover w-full h-full" />
               <Button 
@@ -342,7 +356,7 @@ export function ChatView() {
         )}
         
         {(recordedAudioDataUri && !isRecording) && (
-             <div className="p-2 px-4 border-t flex items-center justify-between text-sm text-muted-foreground">
+             <div className="p-2 px-4 border-t flex items-center justify-between text-sm text-muted-foreground bg-background">
                 <span>Audio recorded. Ready to send.</span>
                 <Button variant="ghost" size="sm" onClick={() => setRecordedAudioDataUri(null)}>Clear Audio</Button>
             </div>
@@ -358,7 +372,7 @@ export function ChatView() {
             </Alert>
         )}
 
-        <div className="p-4 border-t">
+        <div className="p-4 border-t bg-background"> {/* Ensure this part doesn't shrink */}
           <div className="flex items-center space-x-2">
             <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} className="hidden" />
             <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} disabled={isLoading || isRecording} className="animate-pop-out hover:pop-out">

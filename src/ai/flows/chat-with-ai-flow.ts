@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview A Genkit flow for handling chat interactions with the AI, including multimodal inputs.
+ * @fileOverview A Genkit flow for handling chat interactions with the AI, including multimodal inputs and conversation history.
  *
  * - chatWithAi - A function that handles the chat interaction process.
  * - ChatWithAiInput - The input type for the chatWithAi function.
@@ -11,13 +11,23 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-const ChatWithAiInputSchema = z.object({
-  message: z.string().optional().describe("The user's text message to the AI."),
+const ChatMessageHistoryItemSchema = z.object({
+  sender: z.enum(['user', 'ai']),
+  text: z.string().optional(),
   imageDataUri: z.string().optional().describe(
-    "An optional image provided by the user, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+    "An optional image from a past message, as a data URI that must include a MIME type and use Base64 encoding."
+  ),
+  // audioDataUri could be added for history if needed in the future
+});
+
+const ChatWithAiInputSchema = z.object({
+  history: z.array(ChatMessageHistoryItemSchema).optional().describe("The conversation history."),
+  message: z.string().optional().describe("The user's current text message."),
+  imageDataUri: z.string().optional().describe(
+    "An optional image provided by the user for the current message, as a data URI."
   ),
   audioDataUri: z.string().optional().describe(
-    "An optional audio recording provided by the user, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+    "An optional audio recording provided by the user for the current message, as a data URI."
   ),
 });
 export type ChatWithAiInput = z.infer<typeof ChatWithAiInputSchema>;
@@ -28,7 +38,7 @@ const ChatWithAiOutputSchema = z.object({
 export type ChatWithAiOutput = z.infer<typeof ChatWithAiOutputSchema>;
 
 export async function chatWithAi(input: ChatWithAiInput): Promise<ChatWithAiOutput> {
-  if (!input.message && !input.imageDataUri && !input.audioDataUri) {
+  if (!input.message && !input.imageDataUri && !input.audioDataUri && (!input.history || input.history.length === 0)) {
     return { response: "Please provide some input to chat." };
   }
   return chatWithAiFlow(input);
@@ -42,8 +52,17 @@ const prompt = ai.definePrompt({
 You are an expert in NextJS, React, ShadCN UI components, Tailwind CSS, and Genkit.
 Your goal is to assist users with their coding tasks, answer their questions, and help them understand code.
 Be clear, concise, and provide helpful explanations. If asked to write code, provide only the code block.
+Consider the conversation history provided.
 
-User's input:
+{{#if history}}
+Conversation History:
+{{#each history}}
+{{this.sender}}:{{#if this.text}} {{this.text}}{{/if}}{{#if this.imageDataUri}} [Image: {{media url=this.imageDataUri}}]{{/if}}
+{{/each}}
+---
+{{/if}}
+
+Current User Input:
 {{#if message}}Text: {{{message}}}{{/if}}
 {{#if imageDataUri}}
 Image: {{media url=imageDataUri}}
@@ -66,3 +85,4 @@ const chatWithAiFlow = ai.defineFlow(
     return output!;
   }
 );
+
