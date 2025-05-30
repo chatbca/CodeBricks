@@ -20,14 +20,15 @@ import { FixBugsForm } from '@/components/fix-bugs-form';
 import { OptimizeCodeForm } from '@/components/optimize-code-form';
 import { SavedSnippetsManager } from '@/components/saved-snippets-manager';
 import { ChatView } from '@/components/chat-view';
-import { GenerateUnitTestsForm } from '@/components/generate-unit-tests-form'; // Added Unit Test Form
+import { GenerateUnitTestsForm } from '@/components/generate-unit-tests-form';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/context/auth-context';
-import { useTheme } from '@/context/theme-context'; // Added useTheme
-import { LogIn, LogOut, User as UserIcon, Settings, MessageSquare, Wand2, BookOpenText, Bug, Zap, Archive, Loader2, Sun, Moon, Monitor, ClipboardCheck } from 'lucide-react'; // Added Sun, Moon, Monitor, ClipboardCheck
+import { useTheme } from '@/context/theme-context';
+import { useToast } from '@/hooks/use-toast'; // Import useToast
+import { LogIn, LogOut, User as UserIcon, Settings, MessageSquare, Wand2, BookOpenText, Bug, Zap, Archive, Loader2, Sun, Moon, Monitor, ClipboardCheck } from 'lucide-react';
 
 type FeatureKey = 'chat' | 'generate' | 'explain' | 'fix' | 'optimize' | 'saved' | 'test';
 
@@ -44,7 +45,7 @@ const navItems: NavItem[] = [
   { key: 'explain', label: 'Explain Code', icon: BookOpenText, component: ExplainCodeForm },
   { key: 'fix', label: 'Fix Bugs', icon: Bug, component: FixBugsForm },
   { key: 'optimize', label: 'Optimize Code', icon: Zap, component: OptimizeCodeForm },
-  { key: 'test', label: 'Generate Tests', icon: ClipboardCheck, component: GenerateUnitTestsForm }, // Added Unit Test Nav
+  { key: 'test', label: 'Generate Tests', icon: ClipboardCheck, component: GenerateUnitTestsForm },
   { key: 'saved', label: 'Saved Snippets', icon: Archive, component: SavedSnippetsManager },
 ];
 
@@ -69,17 +70,36 @@ export function MainAppLayout() {
   const [activeFeatureKey, setActiveFeatureKey] = useState<FeatureKey>('chat');
   const { user, loading: authLoading, signInWithGoogle, signOutUser } = useAuth();
   const { theme, setTheme, resolvedTheme } = useTheme();
+  const { toast } = useToast(); // Initialize useToast
   const [isClient, setIsClient] = useState(false);
+  const [hasShownInitialSignInToast, setHasShownInitialSignInToast] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
+  useEffect(() => {
+    if (isClient && !authLoading && !user && !hasShownInitialSignInToast) {
+      toast({
+        title: "Welcome to CodeBricks AI!",
+        description: "Sign in to save your work, sync across devices, and unlock all features.",
+        action: <Button onClick={signInWithGoogle} className="animate-pop-out hover:pop-out active:pop-out"><LogIn className="mr-2 h-4 w-4" />Sign In</Button>,
+        duration: 9000,
+      });
+      setHasShownInitialSignInToast(true);
+    }
+    // Reset toast flag if user logs in, so it can be shown again if they log out later in the same session
+    if (user) {
+      setHasShownInitialSignInToast(false);
+    }
+  }, [isClient, authLoading, user, hasShownInitialSignInToast, signInWithGoogle, toast]);
+
+
   const activeNavItem = navItems.find(item => item.key === activeFeatureKey);
   const ActiveFeatureComponent = activeNavItem ? activeNavItem.component : ChatView;
 
   const UserAuthDisplay = () => {
-    if (!isClient || authLoading) { // Ensure client-side before rendering auth state
+    if (!isClient || authLoading) { 
       return <Button variant="ghost" size="icon" disabled><Loader2 className="h-5 w-5 animate-spin" /></Button>;
     }
 
@@ -185,3 +205,4 @@ export function MainAppLayout() {
     </SidebarProvider>
   );
 }
+
