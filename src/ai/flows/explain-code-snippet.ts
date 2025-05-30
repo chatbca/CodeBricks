@@ -18,7 +18,7 @@ const ExplainCodeSnippetInputSchema = z.object({
 export type ExplainCodeSnippetInput = z.infer<typeof ExplainCodeSnippetInputSchema>;
 
 const ExplainCodeSnippetOutputSchema = z.object({
-  explanation: z.string().describe('The explanation of the code snippet in plain English.'),
+  explanation: z.string().describe('The explanation of the code snippet in plain English, formatted neatly.'),
 });
 export type ExplainCodeSnippetOutput = z.infer<typeof ExplainCodeSnippetOutputSchema>;
 
@@ -32,14 +32,22 @@ const prompt = ai.definePrompt({
   output: {schema: ExplainCodeSnippetOutputSchema},
   prompt: `You are an expert software developer, skilled at explaining code to junior developers.
 
-  Please explain the following code snippet in plain English, so that a junior developer can understand it. Be clear, concise, and avoid jargon where possible. Provide high level context before diving into specific details.
+  Please explain the following code snippet in plain English, so that a junior developer can understand it.
+  Structure your explanation in a neat and organized format.
+  Follow these guidelines for the explanation:
+  1.  **Overall Purpose:** Start with a brief, high-level summary of what the code does.
+  2.  **Key Components/Steps:** Break down the explanation into logical sections or steps. Describe what each major part of the code is responsible for.
+  3.  **Clarity and Conciseness:** Use clear, simple language. Avoid jargon where possible, or explain it if necessary.
+  4.  **Formatting:** Use markdown formatting (like headings, subheadings, bullet points, or bold text for emphasis) to make the explanation easy to read and digest.
 
   Programming Language: {{{programmingLanguage}}}
 
   Code Snippet:
-  {{{
-    codeSnippet
-  }}}
+  \`\`\`{{{programmingLanguage}}}
+  {{{codeSnippet}}}
+  \`\`\`
+
+  Your well-formatted explanation:
   `,
 });
 
