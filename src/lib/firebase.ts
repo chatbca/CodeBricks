@@ -1,55 +1,30 @@
 
+// Import the functions you need from the SDKs you need
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
-const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
-const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-const messagingSenderId = process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
-const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID;
-
-// Enhanced Logging for Debugging Firebase Environment Variables
-if (typeof window === 'undefined') { // Log only on the server-side
-  console.log("--- Firebase Configuration Check ---");
-  if (!apiKey) {
-    console.error(
-      "🔴 FATAL: Firebase API Key (NEXT_PUBLIC_FIREBASE_API_KEY) is MISSING or EMPTY. \n" +
-      "   Please ensure it's correctly set in your .env.local file (located in the project root). \n" +
-      "   After updating .env.local, you MUST RESTART your Next.js development server."
-    );
-  } else {
-    const maskedApiKey = `${apiKey.substring(0, 5)}...${apiKey.substring(apiKey.length - 5)}`;
-    console.log(`🟢 Firebase API Key (NEXT_PUBLIC_FIREBASE_API_KEY) loaded: ${maskedApiKey}`);
-  }
-
-  if (!authDomain) {
-    console.warn("🟡 WARNING: Firebase Auth Domain (NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) is missing or empty. This is likely required for Firebase Auth to work. Check .env.local and restart your server.");
-  } else {
-    console.log(`🟢 Firebase Auth Domain (NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) loaded: ${authDomain}`);
-  }
-
-  if (!projectId) {
-    console.warn("🟡 WARNING: Firebase Project ID (NEXT_PUBLIC_FIREBASE_PROJECT_ID) is missing or empty. This is crucial for Firebase services. Check .env.local and restart your server.");
-  } else {
-    console.log(`🟢 Firebase Project ID (NEXT_PUBLIC_FIREBASE_PROJECT_ID) loaded: ${projectId}`);
-  }
-  console.log("--- End of Firebase Configuration Check ---");
-}
-
-
+// Your web app's Firebase configuration (as provided)
 const firebaseConfig = {
-  apiKey: apiKey,
-  authDomain: authDomain,
-  projectId: projectId,
-  storageBucket: storageBucket,
-  messagingSenderId: messagingSenderId,
-  appId: appId,
+  apiKey: "AIzaSyBrB6Y9cs_jIThioOYrXAcQcS_bHIfr1I0",
+  authDomain: "codebricks-ai.firebaseapp.com",
+  projectId: "codebricks-ai",
+  storageBucket: "codebricks-ai.firebasestorage.app",
+  messagingSenderId: "469746810780",
+  appId: "1:469746810780:web:39a44a08a8d169546c9259"
 };
 
 // Initialize Firebase
 let app: FirebaseApp;
+
 if (!getApps().length) {
+  // Basic check if the hardcoded API key is present
+  if (!firebaseConfig.apiKey) {
+    console.error(
+        "Firebase API Key is missing in the hardcoded firebaseConfig. Firebase will not initialize properly."
+    );
+    // You might want to throw an error here or handle it more gracefully
+    // For now, allowing it to proceed will likely result in Firebase SDK's own error.
+  }
   app = initializeApp(firebaseConfig);
 } else {
   app = getApps()[0];
