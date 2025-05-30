@@ -8,7 +8,7 @@ import { Wand2, Sparkles, Save } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+// Removed Label as FormLabel from FormField will be used
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,6 +25,7 @@ import { Input } from './ui/input';
 const generateCodeSchema = z.object({
   prompt: z.string().min(10, { message: "Prompt must be at least 10 characters." }),
   language: z.string().min(1, { message: "Please select a language." }),
+  aiModel: z.string().min(1, { message: "Please select an AI model."}),
   snippetName: z.string().optional(),
 });
 
@@ -41,6 +42,7 @@ export function GenerateCodeForm() {
     defaultValues: {
       prompt: '',
       language: DEFAULT_LANGUAGE,
+      aiModel: 'gemini', // Default AI model
     },
   });
 
@@ -48,6 +50,7 @@ export function GenerateCodeForm() {
     setIsLoading(true);
     setGeneratedCode(null);
     try {
+      // TODO: Pass data.aiModel to the generateCode flow if it supports model selection
       const result = await generateCode({ prompt: data.prompt, language: data.language });
       setGeneratedCode(result.code);
       form.setValue("snippetName", `${data.language}_${data.prompt.substring(0,20).replace(/\s+/g, '_')}`);
@@ -76,9 +79,9 @@ export function GenerateCodeForm() {
       name,
       code: generatedCode,
       language: values.language,
-      description: `Generated from prompt: "${values.prompt}"`,
+      description: `Generated from prompt: "${values.prompt}" with ${values.aiModel} model.`,
       createdAt: new Date().toISOString(),
-      tags: ['generated', values.language],
+      tags: ['generated', values.language, values.aiModel],
     };
     setSavedSnippets([...savedSnippets, newSnippet]);
     toast({ title: "Snippet Saved!", description: `"${name}" has been saved.` });
@@ -124,7 +127,7 @@ export function GenerateCodeForm() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Programming Language</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select language" />
@@ -142,10 +145,23 @@ export function GenerateCodeForm() {
                   </FormItem>
                 )}
               />
-              <FormItem>
-                <FormLabel>AI Model</FormLabel>
-                 <ModelSelector showLabel={false} />
-              </FormItem>
+              <FormField
+                control={form.control}
+                name="aiModel"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>AI Model</FormLabel>
+                    <FormControl>
+                      <ModelSelector 
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        showLabel={false} // FormField provides the label
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <Button type="submit" disabled={isLoading} className="w-full md:w-auto animate-pop-out hover:pop-out active:pop-out">

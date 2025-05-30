@@ -8,7 +8,7 @@ import { BookOpenText, Sparkles, Save } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+// Removed Label as FormLabel from FormField will be used
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +24,7 @@ import { Input } from './ui/input';
 const explainCodeSchema = z.object({
   codeSnippet: z.string().min(1, { message: "Code snippet cannot be empty." }),
   programmingLanguage: z.string().min(1, { message: "Please select a language." }),
+  aiModel: z.string().min(1, { message: "Please select an AI model."}),
   snippetName: z.string().optional(),
 });
 
@@ -40,6 +41,7 @@ export function ExplainCodeForm() {
     defaultValues: {
       codeSnippet: '',
       programmingLanguage: DEFAULT_LANGUAGE,
+      aiModel: 'gemini', // Default AI model
     },
   });
 
@@ -47,6 +49,7 @@ export function ExplainCodeForm() {
     setIsLoading(true);
     setExplanation(null);
     try {
+      // TODO: Pass data.aiModel to the explainCodeSnippet flow if it supports model selection
       const result = await explainCodeSnippet({ 
         codeSnippet: data.codeSnippet, 
         programmingLanguage: data.programmingLanguage 
@@ -78,9 +81,9 @@ export function ExplainCodeForm() {
       name,
       code: values.codeSnippet,
       language: values.programmingLanguage,
-      description: explanation || `Original code for explanation.`,
+      description: explanation || `Original code for explanation (Model: ${values.aiModel}).`,
       createdAt: new Date().toISOString(),
-      tags: ['explained', values.programmingLanguage],
+      tags: ['explained', values.programmingLanguage, values.aiModel],
     };
     setSavedSnippets([...savedSnippets, newSnippet]);
     toast({ title: "Snippet Saved!", description: `"${name}" (original code) has been saved.` });
@@ -126,7 +129,7 @@ export function ExplainCodeForm() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Programming Language</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select language" />
@@ -144,10 +147,23 @@ export function ExplainCodeForm() {
                   </FormItem>
                 )}
               />
-              <FormItem>
-                <FormLabel>AI Model</FormLabel>
-                <ModelSelector showLabel={false}/>
-              </FormItem>
+              <FormField
+                control={form.control}
+                name="aiModel"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>AI Model</FormLabel>
+                    <FormControl>
+                      <ModelSelector
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        showLabel={false} // FormField provides the label
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <Button type="submit" disabled={isLoading} className="w-full md:w-auto animate-pop-out hover:pop-out active:pop-out">
