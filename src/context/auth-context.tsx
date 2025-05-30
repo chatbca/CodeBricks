@@ -33,16 +33,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       await signInWithPopup(auth, googleAuthProvider);
-      // onAuthStateChanged will handle setting the user
       toast({ title: "Signed in successfully!" });
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
+      let toastTitle = "Sign In Failed";
+      let toastDescription = error.message || "Could not sign in with Google. Please try again.";
+
+      if (error.code === 'auth/unauthorized-domain') {
+        toastTitle = "Unauthorized Domain";
+        let currentOrigin = 'your application domain (e.g., localhost or your-project.firebasestudio.com)';
+        if (typeof window !== 'undefined') {
+          currentOrigin = window.location.origin;
+        }
+        toastDescription = `The domain "${currentOrigin}" is not authorized for this Firebase project. Please add this exact domain to the 'Authorized domains' list in your Firebase project settings (Authentication -> Settings tab). After adding, refresh this page.`;
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        toastTitle = "Sign In Cancelled";
+        toastDescription = "The sign-in popup was closed before completing the sign-in process.";
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        toastTitle = "Sign In Cancelled";
+        toastDescription = "Multiple sign-in popups were opened. Please try again.";
+      }
+
+
       toast({
         variant: "destructive",
-        title: "Sign In Failed",
-        description: error.message || "Could not sign in with Google. Please try again.",
+        title: toastTitle,
+        description: toastDescription,
+        duration: 9000, // Give more time to read the detailed message
       });
-      setLoading(false); // Ensure loading is false on error
+      setLoading(false);
     }
   };
 
@@ -50,7 +69,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       await firebaseSignOut(auth);
-      // onAuthStateChanged will handle setting user to null
       toast({ title: "Signed out successfully." });
     } catch (error: any) {
       console.error("Error signing out:", error);
