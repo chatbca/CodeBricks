@@ -34,43 +34,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await signInWithPopup(auth, googleAuthProvider);
       toast({ title: "Signed in successfully!" });
+      // setLoading(false) will be handled by onAuthStateChanged if sign-in is successful
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
       let toastTitle = "Sign In Failed";
       let toastDescription = error.message || "Could not sign in with Google. Please try again.";
+      let currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'your application domain';
 
       if (error.code === 'auth/unauthorized-domain') {
         toastTitle = "Unauthorized Domain";
-        let currentOrigin = 'your application domain';
-        if (typeof window !== 'undefined') {
-          currentOrigin = window.location.origin;
-        }
-        toastDescription = `The domain "${currentOrigin}" is not authorized for this Firebase project. Please add this exact domain to the 'Authorized domains' list in your Firebase project settings (Authentication -> Settings tab). After adding, refresh this page.`;
+        toastDescription = `The domain "${currentOrigin}" is not authorized. Please add this exact domain to 'Authorized domains' in your Firebase project (Authentication -> Settings tab) and refresh.`;
       } else if (error.code === 'auth/popup-closed-by-user') {
         toastTitle = "Sign In Cancelled";
-        toastDescription = "The sign-in popup was closed before completing the sign-in process.";
+        toastDescription = "The sign-in popup was closed before completing the process. If you didn't close it, please check your browser's pop-up blocker settings or try again.";
       } else if (error.code === 'auth/cancelled-popup-request') {
-        toastTitle = "Sign In Cancelled";
-        toastDescription = "Multiple sign-in popups were opened. Please try again.";
+        toastTitle = "Sign In Interrupted";
+        toastDescription = "The sign-in process was interrupted, possibly by another popup or browser action. Please try again.";
       }
-
+      // For any error during sign-in attempt, reset loading state.
+      // onAuthStateChanged will handle successful sign-ins.
+      setLoading(false);
 
       toast({
         variant: "destructive",
         title: toastTitle,
         description: toastDescription,
-        duration: 9000, // Give more time to read the detailed message
+        duration: 9000, 
       });
-      // setLoading(false) will be handled by onAuthStateChanged if sign-in fails early
-      // If it's a user cancellation, user state won't change, so loading should be reset.
-      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-        setLoading(false);
-      }
     }
-    // setLoading(false) is typically handled by onAuthStateChanged, 
-    // but for pop-up closed by user, auth state might not change, so we ensure loading is false.
-    // However, if an actual error occurs before onAuthStateChanged triggers, setLoading(false) might be missed.
-    // Let onAuthStateChanged primarily handle setLoading(false) on user state changes.
   };
 
   const signOutUser = async () => {
@@ -104,4 +95,3 @@ export function useAuth() {
   }
   return context;
 }
-
