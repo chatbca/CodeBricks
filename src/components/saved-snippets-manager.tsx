@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useState, useMemo } from 'react';
-import { Archive, Trash2, Eye, Tag, Search, CornerDownLeft } from 'lucide-react';
+import { Archive, Trash2, Eye, Tag, Search, CornerDownLeft, LogIn, User, AlertTriangle } from 'lucide-react'; // Added LogIn, User, AlertTriangle
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { SNIPPETS_STORAGE_KEY } from '@/lib/snippet-storage';
 import type { SavedSnippet } from '@/types';
@@ -14,14 +15,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatDistanceToNow } from 'date-fns';
 import { ScrollArea } from './ui/scroll-area';
-
+import { useAuth } from '@/context/auth-context'; // Added useAuth
+import { Skeleton } from '@/components/ui/skeleton'; // Added Skeleton
 
 export function SavedSnippetsManager() {
+  const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const [snippets, setSnippets] = useLocalStorage<SavedSnippet[]>(SNIPPETS_STORAGE_KEY, []);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSnippet, setSelectedSnippet] = useState<SavedSnippet | null>(null);
+  // const [selectedSnippet, setSelectedSnippet] = useState<SavedSnippet | null>(null); // Not currently used, can be removed if not needed for view dialog
 
   const filteredSnippets = useMemo(() => {
+    if (!user) return []; // No snippets if not logged in (though localStorage is global, UI will hide)
     return snippets
       .filter(snippet => 
         snippet.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -30,11 +34,35 @@ export function SavedSnippetsManager() {
         snippet.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
       )
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [snippets, searchTerm]);
+  }, [snippets, searchTerm, user]);
 
   const deleteSnippet = (id: string) => {
     setSnippets(snippets.filter(s => s.id !== id));
   };
+
+  if (authLoading) {
+    return (
+      <Card className="w-full animate-pop-out shadow-xl">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <Archive className="h-8 w-8 text-primary" />
+            <div>
+              <CardTitle className="text-2xl font-semibold">Saved Snippets</CardTitle>
+              <CardDescription>Manage your saved code bricks here.</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Skeleton className="h-10 w-full" />
+          <div className="space-y-4">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full animate-pop-out shadow-xl">
@@ -43,107 +71,139 @@ export function SavedSnippetsManager() {
           <Archive className="h-8 w-8 text-primary" />
           <div>
             <CardTitle className="text-2xl font-semibold">Saved Snippets</CardTitle>
-            <CardDescription>Manage your saved code bricks here.</CardDescription>
+            <CardDescription>
+              {user ? "Manage your saved code bricks here." : "Sign in to manage and save your code bricks."}
+            </CardDescription>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <Input 
-            type="search"
-            placeholder="Search snippets by name, code, language, or tag..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-
-        {filteredSnippets.length === 0 ? (
-          <Alert>
-            <CornerDownLeft className="h-4 w-4" />
-            <AlertTitle>No Snippets Found</AlertTitle>
+        {!user ? (
+          <Alert variant="default" className="bg-secondary/30">
+            <User className="h-5 w-5" />
+            <AlertTitle className="text-lg font-semibold">Sign In to Access Snippets</AlertTitle>
             <AlertDescription>
-              {snippets.length > 0 ? "No snippets match your current search." : "You haven't saved any snippets yet. Use the 'Save Snippet' button in other tools!"}
+              Please sign in to view, save, and manage your code snippets. Your snippets will be stored locally in this browser.
             </AlertDescription>
+            <div className="mt-4">
+              <Button onClick={signInWithGoogle} className="animate-pop-out hover:pop-out active:pop-out">
+                <LogIn className="mr-2 h-4 w-4" />
+                Sign In with Google
+              </Button>
+            </div>
           </Alert>
         ) : (
-          <ScrollArea className="h-[500px] pr-3">
-            <div className="space-y-4">
-            {filteredSnippets.map(snippet => (
-              <Card key={snippet.id} className="hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-lg">{snippet.name}</CardTitle>
-                      <CardDescription>
-                        Saved {formatDistanceToNow(new Date(snippet.createdAt), { addSuffix: true })}
-                        {snippet.language && ` • ${snippet.language}`}
-                      </CardDescription>
-                    </div>
-                     <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="animate-pop-out hover:pop-out active:pop-out">
-                          <Eye className="mr-2 h-4 w-4" /> View
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-3xl">
-                        <DialogHeader>
-                          <DialogTitle>{snippet.name}</DialogTitle>
-                          <DialogDescription>
-                            {snippet.language && <Badge variant="secondary" className="mr-2">{snippet.language}</Badge>}
-                            Saved {formatDistanceToNow(new Date(snippet.createdAt), { addSuffix: true })}
-                          </DialogDescription>
-                        </DialogHeader>
-                        <ScrollArea className="max-h-[60vh] mt-4">
-                          {snippet.description && <p className="text-sm text-muted-foreground mb-2 p-2 bg-muted rounded-md">{snippet.description}</p>}
-                          <CodeDisplay code={snippet.code} language={snippet.language} />
-                        </ScrollArea>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </CardHeader>
-                {snippet.tags && snippet.tags.length > 0 && (
-                  <CardContent className="pt-0 pb-2">
-                    <div className="flex flex-wrap gap-2">
-                      {snippet.tags.map(tag => (
-                        <Badge key={tag} variant="outline">
-                          <Tag className="mr-1 h-3 w-3" />
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                )}
-                <CardFooter className="flex justify-end">
-                   <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="destructive" size="sm" className="animate-pop-out hover:pop-out active:pop-out">
-                        <Trash2 className="mr-2 h-4 w-4" /> Delete
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Confirm Deletion</DialogTitle>
-                        <DialogDescription>
-                          Are you sure you want to delete the snippet "{snippet.name}"? This action cannot be undone.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="flex justify-end gap-2 mt-4">
-                        <DialogTrigger asChild>
-                           <Button variant="outline">Cancel</Button>
-                        </DialogTrigger>
-                        <Button variant="destructive" onClick={() => deleteSnippet(snippet.id)}>
-                          Delete
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </CardFooter>
-              </Card>
-            ))}
+          <>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input 
+                type="search"
+                placeholder="Search snippets by name, code, language, or tag..."
+                className="pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-          </ScrollArea>
+
+            {filteredSnippets.length === 0 && searchTerm && (
+                 <Alert>
+                    <CornerDownLeft className="h-4 w-4" />
+                    <AlertTitle>No Snippets Match Your Search</AlertTitle>
+                    <AlertDescription>
+                    Try a different search term.
+                    </AlertDescription>
+                </Alert>
+            )}
+             {snippets.length === 0 && !searchTerm && (
+                 <Alert>
+                    <CornerDownLeft className="h-4 w-4" />
+                    <AlertTitle>No Snippets Saved Yet</AlertTitle>
+                    <AlertDescription>
+                    Use the 'Save Snippet' button in other tools to save your code bricks here.
+                    </AlertDescription>
+                </Alert>
+            )}
+
+
+            {filteredSnippets.length > 0 && (
+              <ScrollArea className="h-[500px] pr-3">
+                <div className="space-y-4">
+                {filteredSnippets.map(snippet => (
+                  <Card key={snippet.id} className="hover:shadow-md transition-shadow">
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <CardTitle className="text-lg">{snippet.name}</CardTitle>
+                          <CardDescription>
+                            Saved {formatDistanceToNow(new Date(snippet.createdAt), { addSuffix: true })}
+                            {snippet.language && ` • ${snippet.language}`}
+                          </CardDescription>
+                        </div>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" size="sm" className="animate-pop-out hover:pop-out active:pop-out">
+                              <Eye className="mr-2 h-4 w-4" /> View
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-3xl">
+                            <DialogHeader>
+                              <DialogTitle>{snippet.name}</DialogTitle>
+                              <DialogDescription>
+                                {snippet.language && <Badge variant="secondary" className="mr-2">{snippet.language}</Badge>}
+                                Saved {formatDistanceToNow(new Date(snippet.createdAt), { addSuffix: true })}
+                              </DialogDescription>
+                            </DialogHeader>
+                            <ScrollArea className="max-h-[60vh] mt-4">
+                              {snippet.description && <p className="text-sm text-muted-foreground mb-2 p-2 bg-muted rounded-md">{snippet.description}</p>}
+                              <CodeDisplay code={snippet.code} language={snippet.language} />
+                            </ScrollArea>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    </CardHeader>
+                    {snippet.tags && snippet.tags.length > 0 && (
+                      <CardContent className="pt-0 pb-2">
+                        <div className="flex flex-wrap gap-2">
+                          {snippet.tags.map(tag => (
+                            <Badge key={tag} variant="outline">
+                              <Tag className="mr-1 h-3 w-3" />
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      </CardContent>
+                    )}
+                    <CardFooter className="flex justify-end">
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="destructive" size="sm" className="animate-pop-out hover:pop-out active:pop-out">
+                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Confirm Deletion</DialogTitle>
+                            <DialogDescription>
+                              Are you sure you want to delete the snippet "{snippet.name}"? This action cannot be undone.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="flex justify-end gap-2 mt-4">
+                            <DialogTrigger asChild>
+                              <Button variant="outline">Cancel</Button>
+                            </DialogTrigger>
+                            <Button variant="destructive" onClick={() => deleteSnippet(snippet.id)}>
+                              Delete
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </CardFooter>
+                  </Card>
+                ))}
+                </div>
+              </ScrollArea>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
