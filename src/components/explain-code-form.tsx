@@ -156,9 +156,10 @@ export function ExplainCodeForm() {
                     <FormLabel>AI Model</FormLabel>
                     <FormControl>
                       <ModelSelector
+                        id={field.name} // Pass id for RHF
                         onValueChange={field.onChange}
                         value={field.value}
-                        showLabel={false}
+                        showLabel={false} // FormField provides the label
                       />
                     </FormControl>
                     <FormMessage />
@@ -179,8 +180,8 @@ export function ExplainCodeForm() {
             {explanation && (
               <div className="mt-8 space-y-4 pt-4 border-t">
                 <h3 className="text-xl font-semibold">Explanation:</h3>
-                <div className="prose prose-sm max-w-none p-4 border rounded-md bg-secondary/30">
-                  <p>{explanation}</p>
+                <div className="prose prose-sm max-w-none p-4 border rounded-md bg-secondary/30 whitespace-pre-wrap">
+                  {explanation}
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 items-end">
                     <FormField
