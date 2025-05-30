@@ -1,10 +1,8 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
-import { Archive, Trash2, Eye, Tag, Search, CornerDownLeft, LogIn, User, AlertTriangle } from 'lucide-react'; // Added LogIn, User, AlertTriangle
-import { useLocalStorage } from '@/hooks/use-local-storage';
-import { SNIPPETS_STORAGE_KEY } from '@/lib/snippet-storage';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Archive, Trash2, Eye, Tag, Search, CornerDownLeft, LogIn, User, AlertTriangle, Loader2 } from 'lucide-react';
 import type { SavedSnippet } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,17 +13,47 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatDistanceToNow } from 'date-fns';
 import { ScrollArea } from './ui/scroll-area';
-import { useAuth } from '@/context/auth-context'; // Added useAuth
-import { Skeleton } from '@/components/ui/skeleton'; // Added Skeleton
+import { useAuth } from '@/context/auth-context';
+import { Skeleton } from '@/components/ui/skeleton';
+import { getSnippetsForUser, deleteSnippet as deleteSnippetFromFirestore } from '@/lib/firestore';
+import { useToast } from '@/hooks/use-toast';
+
 
 export function SavedSnippetsManager() {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
-  const [snippets, setSnippets] = useLocalStorage<SavedSnippet[]>(SNIPPETS_STORAGE_KEY, []);
+  const [snippets, setSnippets] = useState<SavedSnippet[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  // const [selectedSnippet, setSelectedSnippet] = useState<SavedSnippet | null>(null); // Not currently used, can be removed if not needed for view dialog
+  const [isLoadingSnippets, setIsLoadingSnippets] = useState(false);
+  const { toast } = useToast();
+
+  const fetchSnippets = useCallback(async () => {
+    if (user) {
+      setIsLoadingSnippets(true);
+      try {
+        const userSnippets = await getSnippetsForUser(user.uid);
+        setSnippets(userSnippets);
+      } catch (error) {
+        console.error("Failed to fetch snippets:", error);
+        toast({
+          variant: "destructive",
+          title: "Error Fetching Snippets",
+          description: "Could not load your saved snippets from the cloud.",
+        });
+        setSnippets([]); // Clear snippets on error
+      } finally {
+        setIsLoadingSnippets(false);
+      }
+    } else {
+      setSnippets([]); // Clear snippets if user logs out
+    }
+  }, [user, toast]);
+
+  useEffect(() => {
+    fetchSnippets();
+  }, [fetchSnippets]);
 
   const filteredSnippets = useMemo(() => {
-    if (!user) return []; // No snippets if not logged in (though localStorage is global, UI will hide)
+    if (!user) return []; 
     return snippets
       .filter(snippet => 
         snippet.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -36,8 +64,19 @@ export function SavedSnippetsManager() {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [snippets, searchTerm, user]);
 
-  const deleteSnippet = (id: string) => {
-    setSnippets(snippets.filter(s => s.id !== id));
+  const handleDeleteSnippet = async (id: string) => {
+    try {
+      await deleteSnippetFromFirestore(id);
+      setSnippets(prev => prev.filter(s => s.id !== id));
+      toast({ title: "Snippet Deleted", description: "The snippet has been removed from Firestore."});
+    } catch (error) {
+      console.error("Failed to delete snippet:", error);
+      toast({
+        variant: "destructive",
+        title: "Deletion Failed",
+        description: "Could not delete the snippet from the cloud.",
+      });
+    }
   };
 
   if (authLoading) {
@@ -72,7 +111,7 @@ export function SavedSnippetsManager() {
           <div>
             <CardTitle className="text-2xl font-semibold">Saved Snippets</CardTitle>
             <CardDescription>
-              {user ? "Manage your saved code bricks here." : "Sign in to manage and save your code bricks."}
+              {user ? "Manage your code bricks saved to the cloud." : "Sign in to manage and save your code bricks."}
             </CardDescription>
           </div>
         </div>
@@ -83,7 +122,7 @@ export function SavedSnippetsManager() {
             <User className="h-5 w-5" />
             <AlertTitle className="text-lg font-semibold">Sign In to Access Snippets</AlertTitle>
             <AlertDescription>
-              Please sign in to view, save, and manage your code snippets. Your snippets will be stored locally in this browser.
+              Please sign in to view, save, and manage your code snippets. Your snippets will be stored in the cloud and accessible across your devices.
             </AlertDescription>
             <div className="mt-4">
               <Button onClick={signInWithGoogle} className="animate-pop-out hover:pop-out active:pop-out">
@@ -105,7 +144,14 @@ export function SavedSnippetsManager() {
               />
             </div>
 
-            {filteredSnippets.length === 0 && searchTerm && (
+            {isLoadingSnippets && (
+                <div className="flex items-center justify-center py-10">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="ml-2 text-muted-foreground">Loading snippets...</p>
+                </div>
+            )}
+
+            {!isLoadingSnippets && filteredSnippets.length === 0 && searchTerm && (
                  <Alert>
                     <CornerDownLeft className="h-4 w-4" />
                     <AlertTitle>No Snippets Match Your Search</AlertTitle>
@@ -114,18 +160,18 @@ export function SavedSnippetsManager() {
                     </AlertDescription>
                 </Alert>
             )}
-             {snippets.length === 0 && !searchTerm && (
+             {!isLoadingSnippets && snippets.length === 0 && !searchTerm && (
                  <Alert>
                     <CornerDownLeft className="h-4 w-4" />
                     <AlertTitle>No Snippets Saved Yet</AlertTitle>
                     <AlertDescription>
-                    Use the 'Save Snippet' button in other tools to save your code bricks here.
+                    Use the 'Save Snippet' button in other tools to save your code bricks here. They will be saved to your account in the cloud.
                     </AlertDescription>
                 </Alert>
             )}
 
 
-            {filteredSnippets.length > 0 && (
+            {!isLoadingSnippets && filteredSnippets.length > 0 && (
               <ScrollArea className="h-[500px] pr-3">
                 <div className="space-y-4">
                 {filteredSnippets.map(snippet => (
@@ -135,7 +181,7 @@ export function SavedSnippetsManager() {
                         <div>
                           <CardTitle className="text-lg">{snippet.name}</CardTitle>
                           <CardDescription>
-                            Saved {formatDistanceToNow(new Date(snippet.createdAt), { addSuffix: true })}
+                            Saved {snippet.createdAt ? formatDistanceToNow(new Date(snippet.createdAt), { addSuffix: true }) : 'recently'}
                             {snippet.language && ` • ${snippet.language}`}
                           </CardDescription>
                         </div>
@@ -150,11 +196,11 @@ export function SavedSnippetsManager() {
                               <DialogTitle>{snippet.name}</DialogTitle>
                               <DialogDescription>
                                 {snippet.language && <Badge variant="secondary" className="mr-2">{snippet.language}</Badge>}
-                                Saved {formatDistanceToNow(new Date(snippet.createdAt), { addSuffix: true })}
+                                Saved {snippet.createdAt ? formatDistanceToNow(new Date(snippet.createdAt), { addSuffix: true }) : 'recently'}
                               </DialogDescription>
                             </DialogHeader>
                             <ScrollArea className="max-h-[60vh] mt-4">
-                              {snippet.description && <p className="text-sm text-muted-foreground mb-2 p-2 bg-muted rounded-md">{snippet.description}</p>}
+                              {snippet.description && <p className="text-sm text-muted-foreground mb-2 p-2 bg-muted rounded-md whitespace-pre-wrap">{snippet.description}</p>}
                               <CodeDisplay code={snippet.code} language={snippet.language} />
                             </ScrollArea>
                           </DialogContent>
@@ -191,7 +237,7 @@ export function SavedSnippetsManager() {
                             <DialogTrigger asChild>
                               <Button variant="outline">Cancel</Button>
                             </DialogTrigger>
-                            <Button variant="destructive" onClick={() => deleteSnippet(snippet.id)}>
+                            <Button variant="destructive" onClick={() => handleDeleteSnippet(snippet.id)}>
                               Delete
                             </Button>
                           </div>

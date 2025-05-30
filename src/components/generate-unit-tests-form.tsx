@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Wand2, Sparkles, Save } from 'lucide-react';
+import { ClipboardCheck, Sparkles, Save } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,51 +15,75 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CodeDisplay } from '@/components/code-display';
 import { ModelSelector } from '@/components/model-selector';
 import { useToast } from '@/hooks/use-toast';
-import { generateCode } from '@/ai/flows/generate-code-from-prompt';
+import { generateUnitTests } from '@/ai/flows/generate-unit-tests-flow'; // New flow
 import { PROGRAMMING_LANGUAGES, DEFAULT_LANGUAGE } from '@/lib/constants';
 import type { SavedSnippet } from '@/types';
 import { Input } from './ui/input';
 import { addSnippet } from '@/lib/firestore'; // Firestore
 import { useAuth } from '@/context/auth-context'; // Auth
 
-const generateCodeSchema = z.object({
-  prompt: z.string().min(10, { message: "Prompt must be at least 10 characters." }),
+const TESTING_FRAMEWORKS = [
+  { value: 'jest', label: 'Jest (JavaScript/TypeScript)' },
+  { value: 'pytest', label: 'PyTest (Python)' },
+  { value: 'junit', label: 'JUnit (Java)' },
+  { value: 'nunit', label: 'NUnit (C#)' },
+  { value: 'phpunit', label: 'PHPUnit (PHP)' },
+  { value: 'rspec', label: 'RSpec (Ruby)' },
+  { value: 'golang_test', label: 'Go Testing Package' },
+  { value: 'xctest', label: 'XCTest (Swift)' },
+  { value: 'mocha', label: 'Mocha (JavaScript/TypeScript)' },
+  { value: 'vitest', label: 'Vitest (JavaScript/TypeScript)' },
+  { value: 'cypress', label: 'Cypress (E2E JavaScript/TypeScript)' },
+  { value: 'playwright', label: 'Playwright (E2E JavaScript/TypeScript)' },
+  { value: 'other', label: 'Other/Generic' },
+];
+const DEFAULT_FRAMEWORK = 'jest';
+
+
+const generateTestsSchema = z.object({
+  codeSnippet: z.string().min(1, { message: "Code snippet cannot be empty." }),
   language: z.string().min(1, { message: "Please select a language." }),
+  testFramework: z.string().min(1, { message: "Please select a testing framework." }),
   aiModel: z.string().min(1, { message: "Please select an AI model."}),
   snippetName: z.string().optional(),
 });
 
-type GenerateCodeFormValues = z.infer<typeof generateCodeSchema>;
+type GenerateTestsFormValues = z.infer<typeof generateTestsSchema>;
 
-export function GenerateCodeForm() {
-  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+export function GenerateUnitTestsForm() {
+  const [generatedTests, setGeneratedTests] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
-  const form = useForm<GenerateCodeFormValues>({
-    resolver: zodResolver(generateCodeSchema),
+  const form = useForm<GenerateTestsFormValues>({
+    resolver: zodResolver(generateTestsSchema),
     defaultValues: {
-      prompt: '',
+      codeSnippet: '',
       language: DEFAULT_LANGUAGE,
+      testFramework: DEFAULT_FRAMEWORK,
       aiModel: 'gemini',
       snippetName: '',
     },
   });
 
-  const onSubmit: SubmitHandler<GenerateCodeFormValues> = async (data) => {
+  const onSubmit: SubmitHandler<GenerateTestsFormValues> = async (data) => {
     setIsLoading(true);
-    setGeneratedCode(null);
+    setGeneratedTests(null);
     try {
-      // TODO: Pass data.aiModel to the generateCode flow if it supports model selection
-      const result = await generateCode({ prompt: data.prompt, language: data.language });
-      setGeneratedCode(result.code);
-      form.setValue("snippetName", `${data.language}_${data.prompt.substring(0,20).replace(/\s+/g, '_')}`);
+      // TODO: Pass data.aiModel to the generateUnitTests flow if it supports model selection
+      const result = await generateUnitTests({ 
+        codeToTest: data.codeSnippet, 
+        language: data.language,
+        testingFramework: data.testFramework,
+      });
+      setGeneratedTests(result.unitTests);
+      form.setValue("snippetName", `${data.language}_${data.testFramework}_tests_for_${data.codeSnippet.substring(0,10).replace(/\s+/g, '_')}`);
     } catch (error) {
-      console.error("Error generating code:", error);
+      console.error("Error generating unit tests:", error);
       toast({
         variant: "destructive",
-        title: "Error Generating Code",
+        title: "Error Generating Tests",
         description: error instanceof Error ? error.message : "An unknown error occurred.",
       });
     } finally {
@@ -67,27 +91,29 @@ export function GenerateCodeForm() {
     }
   };
 
-  const handleSaveSnippet = async () => {
+  const handleSaveSnippet = async (codeToSave: string, type: 'original_code' | 'test_code') => {
     if (!user) {
       toast({ title: "Sign In Required", description: "Please sign in to save snippets.", variant: "destructive" });
       return;
     }
     const values = form.getValues();
-    if (!generatedCode || !values.language) {
-      toast({ title: "Nothing to save", description: "Generate some code first.", variant: "destructive" });
+    if (!codeToSave) {
+      toast({ title: "Nothing to save", description: "No code to save.", variant: "destructive" });
       return;
     }
-    const name = values.snippetName || `Generated ${values.language} snippet ${new Date().toLocaleTimeString()}`;
+    const name = values.snippetName 
+      ? `${values.snippetName}_${type}` 
+      : `${type === 'test_code' ? 'Tests for' : 'Original'} ${values.language} snippet ${new Date().toLocaleTimeString()}`;
     
     const newSnippet: Omit<SavedSnippet, 'id' | 'createdAt'> = {
       userId: user.uid,
       name,
-      code: generatedCode,
-      language: values.language,
-      description: `Generated from prompt: "${values.prompt}" with ${values.aiModel} model.`,
-      tags: ['generated', values.language, values.aiModel],
+      code: codeToSave,
+      language: type === 'test_code' ? values.language : values.language, // Test language often same as code language
+      description: type === 'test_code' ? `Generated ${values.testFramework} tests for the original code.` : 'Original code for which tests were generated.',
+      tags: [type, values.language, values.testFramework, values.aiModel, 'unit-tests'],
     };
-
+    
     try {
       await addSnippet(newSnippet);
       toast({ title: "Snippet Saved!", description: `"${name}" has been saved to Firestore.` });
@@ -101,10 +127,10 @@ export function GenerateCodeForm() {
     <Card className="w-full animate-pop-out shadow-xl">
       <CardHeader>
         <div className="flex items-center gap-3">
-          <Wand2 className="h-8 w-8 text-primary" />
+          <ClipboardCheck className="h-8 w-8 text-primary" />
           <div>
-            <CardTitle className="text-2xl font-semibold">Generate Code</CardTitle>
-            <CardDescription>Describe the code you need, and let AI build it for you.</CardDescription>
+            <CardTitle className="text-2xl font-semibold">Generate Unit Tests</CardTitle>
+            <CardDescription>Provide your code and let AI generate unit test cases for you.</CardDescription>
           </div>
         </div>
       </CardHeader>
@@ -113,15 +139,15 @@ export function GenerateCodeForm() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
               control={form.control}
-              name="prompt"
+              name="codeSnippet"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Prompt</FormLabel>
+                  <FormLabel>Code to Test</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="e.g., a Python function to sort a list of numbers"
-                      rows={5}
-                      className="resize-none"
+                      placeholder="Paste your code here..."
+                      rows={8}
+                      className="font-mono text-sm resize-none"
                       {...field}
                     />
                   </FormControl>
@@ -130,7 +156,7 @@ export function GenerateCodeForm() {
               )}
             />
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <FormField
                 control={form.control}
                 name="language"
@@ -157,13 +183,36 @@ export function GenerateCodeForm() {
               />
               <FormField
                 control={form.control}
+                name="testFramework"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Testing Framework</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select framework" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {TESTING_FRAMEWORKS.map((fw) => (
+                          <SelectItem key={fw.value} value={fw.value}>
+                            {fw.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="aiModel"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>AI Model</FormLabel>
                     <FormControl>
                       <ModelSelector 
-                        id={field.name}
                         onValueChange={field.onChange}
                         value={field.value}
                         showLabel={false} 
@@ -179,15 +228,15 @@ export function GenerateCodeForm() {
               {isLoading ? (
                 <Sparkles className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                <Wand2 className="mr-2 h-4 w-4" />
+                <ClipboardCheck className="mr-2 h-4 w-4" />
               )}
-              Generate Code
+              Generate Tests
             </Button>
 
-            {generatedCode && (
+            {generatedTests && (
               <div className="mt-8 space-y-4 pt-4 border-t">
-                <h3 className="text-xl font-semibold">Generated Code:</h3>
-                <CodeDisplay code={generatedCode} language={form.getValues("language")} />
+                <h3 className="text-xl font-semibold">Generated Unit Tests:</h3>
+                <CodeDisplay code={generatedTests} language={form.getValues("language")} /> {/* Test language might differ, adjust if needed */}
                 <div className="flex flex-col sm:flex-row gap-2 items-end">
                     <FormField
                       control={form.control}
@@ -196,16 +245,22 @@ export function GenerateCodeForm() {
                         <FormItem className="flex-grow">
                           <FormLabel>Snippet Name (Optional)</FormLabel>
                           <FormControl>
-                            <Input placeholder="Enter a name for this snippet" {...field} />
+                            <Input placeholder="Base name for saved snippets" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                    <Button onClick={handleSaveSnippet} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Snippet
-                    </Button>
+                    <div className="flex gap-2 flex-wrap">
+                        <Button onClick={() => handleSaveSnippet(form.getValues("codeSnippet"), 'original_code')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
+                          <Save className="mr-2 h-4 w-4" />
+                          Save Original Code
+                        </Button>
+                        <Button onClick={() => handleSaveSnippet(generatedTests, 'test_code')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
+                          <Save className="mr-2 h-4 w-4" />
+                          Save Test Code
+                        </Button>
+                    </div>
                   </div>
                   {!user && <p className="text-sm text-muted-foreground">Sign in to save snippets.</p>}
               </div>
@@ -213,10 +268,10 @@ export function GenerateCodeForm() {
           </form>
         </Form>
 
-        {isLoading && !generatedCode && (
+        {isLoading && !generatedTests && (
           <div className="mt-6 flex flex-col items-center justify-center space-y-2 text-muted-foreground">
             <Sparkles className="h-8 w-8 animate-pulse text-primary" />
-            <p>Generating your code brick...</p>
+            <p>Generating your test bricks...</p>
           </div>
         )}
       </CardContent>

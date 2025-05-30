@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, Suspense, useEffect } from 'react';
 import { 
   SidebarProvider, 
   Sidebar, 
@@ -20,14 +20,16 @@ import { FixBugsForm } from '@/components/fix-bugs-form';
 import { OptimizeCodeForm } from '@/components/optimize-code-form';
 import { SavedSnippetsManager } from '@/components/saved-snippets-manager';
 import { ChatView } from '@/components/chat-view';
+import { GenerateUnitTestsForm } from '@/components/generate-unit-tests-form'; // Added Unit Test Form
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/context/auth-context';
-import { LogIn, LogOut, User as UserIcon, Settings, MessageSquare, Wand2, BookOpenText, Bug, Zap, Archive, Loader2 } from 'lucide-react';
+import { useTheme } from '@/context/theme-context'; // Added useTheme
+import { LogIn, LogOut, User as UserIcon, Settings, MessageSquare, Wand2, BookOpenText, Bug, Zap, Archive, Loader2, Sun, Moon, Monitor, ClipboardCheck } from 'lucide-react'; // Added Sun, Moon, Monitor, ClipboardCheck
 
-type FeatureKey = 'chat' | 'generate' | 'explain' | 'fix' | 'optimize' | 'saved';
+type FeatureKey = 'chat' | 'generate' | 'explain' | 'fix' | 'optimize' | 'saved' | 'test';
 
 interface NavItem {
   key: FeatureKey;
@@ -42,6 +44,7 @@ const navItems: NavItem[] = [
   { key: 'explain', label: 'Explain Code', icon: BookOpenText, component: ExplainCodeForm },
   { key: 'fix', label: 'Fix Bugs', icon: Bug, component: FixBugsForm },
   { key: 'optimize', label: 'Optimize Code', icon: Zap, component: OptimizeCodeForm },
+  { key: 'test', label: 'Generate Tests', icon: ClipboardCheck, component: GenerateUnitTestsForm }, // Added Unit Test Nav
   { key: 'saved', label: 'Saved Snippets', icon: Archive, component: SavedSnippetsManager },
 ];
 
@@ -65,12 +68,18 @@ function FeatureLoadingSkeleton() {
 export function MainAppLayout() {
   const [activeFeatureKey, setActiveFeatureKey] = useState<FeatureKey>('chat');
   const { user, loading: authLoading, signInWithGoogle, signOutUser } = useAuth();
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const activeNavItem = navItems.find(item => item.key === activeFeatureKey);
   const ActiveFeatureComponent = activeNavItem ? activeNavItem.component : ChatView;
 
   const UserAuthDisplay = () => {
-    if (authLoading) {
+    if (!isClient || authLoading) { // Ensure client-side before rendering auth state
       return <Button variant="ghost" size="icon" disabled><Loader2 className="h-5 w-5 animate-spin" /></Button>;
     }
 
@@ -91,7 +100,27 @@ export function MainAppLayout() {
               <p className="text-xs text-muted-foreground">{user.email}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => {/* TODO: Navigate to profile or settings */}}>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                {resolvedTheme === 'light' && <Sun className="mr-2 h-4 w-4" />}
+                {resolvedTheme === 'dark' && <Moon className="mr-2 h-4 w-4" />}
+                <span>Theme</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
+                  <DropdownMenuRadioItem value="light">
+                    <Sun className="mr-2 h-4 w-4" /> Light
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="dark">
+                    <Moon className="mr-2 h-4 w-4" /> Dark
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="system">
+                    <Monitor className="mr-2 h-4 w-4" /> System
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuItem disabled onClick={() => {/* TODO: Navigate to profile or settings */}}>
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
             </DropdownMenuItem>
@@ -108,7 +137,7 @@ export function MainAppLayout() {
     return (
       <Button onClick={signInWithGoogle} variant="outline" className="animate-pop-out hover:pop-out active:pop-out">
         <LogIn className="mr-2 h-4 w-4" />
-        Sign In with Google
+        Sign In
       </Button>
     );
   };
@@ -143,7 +172,7 @@ export function MainAppLayout() {
           <div className="md:hidden">
              <SidebarTrigger />
           </div>
-          <div className="flex items-center gap-2 ml-auto"> {/* Ensures auth display is on the right */}
+          <div className="flex items-center gap-2 ml-auto">
             <UserAuthDisplay />
           </div>
         </div>

@@ -17,9 +17,9 @@ import { useToast } from '@/hooks/use-toast';
 import { explainCodeSnippet } from '@/ai/flows/explain-code-snippet';
 import { PROGRAMMING_LANGUAGES, DEFAULT_LANGUAGE } from '@/lib/constants';
 import type { SavedSnippet } from '@/types';
-import { useLocalStorage } from '@/hooks/use-local-storage';
-import { SNIPPETS_STORAGE_KEY } from '@/lib/snippet-storage';
 import { Input } from './ui/input';
+import { addSnippet } from '@/lib/firestore'; // Firestore
+import { useAuth } from '@/context/auth-context'; // Auth
 
 const explainCodeSchema = z.object({
   codeSnippet: z.string().min(1, { message: "Code snippet cannot be empty." }),
@@ -34,7 +34,7 @@ export function ExplainCodeForm() {
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const [savedSnippets, setSavedSnippets] = useLocalStorage<SavedSnippet[]>(SNIPPETS_STORAGE_KEY, []);
+  const { user } = useAuth();
 
   const form = useForm<ExplainCodeFormValues>({
     resolver: zodResolver(explainCodeSchema),
@@ -69,7 +69,11 @@ export function ExplainCodeForm() {
     }
   };
   
-  const handleSaveSnippet = () => {
+  const handleSaveSnippet = async () => {
+    if (!user) {
+      toast({ title: "Sign In Required", description: "Please sign in to save snippets.", variant: "destructive" });
+      return;
+    }
     const values = form.getValues();
     if (!values.codeSnippet) {
       toast({ title: "Nothing to save", description: "Enter some code first.", variant: "destructive" });
@@ -77,17 +81,22 @@ export function ExplainCodeForm() {
     }
     const name = values.snippetName || `Explained ${values.programmingLanguage} snippet ${new Date().toLocaleTimeString()}`;
     
-    const newSnippet: SavedSnippet = {
-      id: Date.now().toString(),
+    const newSnippet: Omit<SavedSnippet, 'id' | 'createdAt'> = {
+      userId: user.uid,
       name,
       code: values.codeSnippet,
       language: values.programmingLanguage,
       description: explanation || `Original code for explanation (Model: ${values.aiModel}).`,
-      createdAt: new Date().toISOString(),
       tags: ['explained', values.programmingLanguage, values.aiModel],
     };
-    setSavedSnippets([...savedSnippets, newSnippet]);
-    toast({ title: "Snippet Saved!", description: `"${name}" (original code) has been saved.` });
+
+    try {
+      await addSnippet(newSnippet);
+      toast({ title: "Snippet Saved!", description: `"${name}" (original code) has been saved to Firestore.` });
+    } catch (error) {
+      console.error("Error saving snippet to Firestore:", error);
+      toast({ title: "Save Failed", description: "Could not save snippet to cloud.", variant: "destructive" });
+    }
   };
 
   return (
@@ -156,10 +165,10 @@ export function ExplainCodeForm() {
                     <FormLabel>AI Model</FormLabel>
                     <FormControl>
                       <ModelSelector
-                        id={field.name} // Pass id for RHF
+                        id={field.name} 
                         onValueChange={field.onChange}
                         value={field.value}
-                        showLabel={false} // FormField provides the label
+                        showLabel={false} 
                       />
                     </FormControl>
                     <FormMessage />
@@ -180,7 +189,7 @@ export function ExplainCodeForm() {
             {explanation && (
               <div className="mt-8 space-y-4 pt-4 border-t">
                 <h3 className="text-xl font-semibold">Explanation:</h3>
-                <div className="prose prose-sm max-w-none p-4 border rounded-md bg-secondary/30 whitespace-pre-wrap">
+                <div className="prose prose-sm dark:prose-invert max-w-none p-4 border rounded-md bg-secondary/30 whitespace-pre-wrap">
                   {explanation}
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 items-end">
@@ -197,11 +206,12 @@ export function ExplainCodeForm() {
                         </FormItem>
                       )}
                     />
-                  <Button onClick={handleSaveSnippet} variant="outline" className="animate-pop-out hover:pop-out active:pop-out">
+                  <Button onClick={handleSaveSnippet} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
                     <Save className="mr-2 h-4 w-4" />
                     Save Original Code
                   </Button>
                 </div>
+                {!user && <p className="text-sm text-muted-foreground">Sign in to save snippets.</p>}
               </div>
             )}
           </form>

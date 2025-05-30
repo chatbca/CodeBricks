@@ -17,9 +17,9 @@ import { useToast } from '@/hooks/use-toast';
 import { fixBugsInCode, type FixBugsInCodeOutput } from '@/ai/flows/fix-bugs-in-code';
 import { PROGRAMMING_LANGUAGES, DEFAULT_LANGUAGE } from '@/lib/constants';
 import type { SavedSnippet } from '@/types';
-import { useLocalStorage } from '@/hooks/use-local-storage';
-import { SNIPPETS_STORAGE_KEY } from '@/lib/snippet-storage';
 import { Input } from './ui/input';
+import { addSnippet } from '@/lib/firestore'; // Firestore
+import { useAuth } from '@/context/auth-context'; // Auth
 
 const fixBugsSchema = z.object({
   codeSnippet: z.string().min(1, { message: "Code snippet cannot be empty." }),
@@ -33,7 +33,7 @@ export function FixBugsForm() {
   const [fixResult, setFixResult] = useState<FixBugsInCodeOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const [savedSnippets, setSavedSnippets] = useLocalStorage<SavedSnippet[]>(SNIPPETS_STORAGE_KEY, []);
+  const { user } = useAuth();
 
   const form = useForm<FixBugsFormValues>({
     resolver: zodResolver(fixBugsSchema),
@@ -63,7 +63,11 @@ export function FixBugsForm() {
     }
   };
 
-  const handleSaveSnippet = (codeToSave: string, type: 'original' | 'fixed') => {
+  const handleSaveSnippet = async (codeToSave: string, type: 'original' | 'fixed') => {
+    if (!user) {
+      toast({ title: "Sign In Required", description: "Please sign in to save snippets.", variant: "destructive" });
+      return;
+    }
     const values = form.getValues();
     if (!codeToSave) {
       toast({ title: "Nothing to save", description: "No code to save.", variant: "destructive" });
@@ -73,17 +77,22 @@ export function FixBugsForm() {
       ? `${values.snippetName}_${type}` 
       : `${type === 'fixed' ? 'Fixed' : 'Original'} ${values.language} snippet ${new Date().toLocaleTimeString()}`;
     
-    const newSnippet: SavedSnippet = {
-      id: Date.now().toString(),
+    const newSnippet: Omit<SavedSnippet, 'id' | 'createdAt'> = {
+      userId: user.uid,
       name,
       code: codeToSave,
       language: values.language,
       description: type === 'fixed' ? fixResult?.suggestedFix : 'Original buggy code.',
-      createdAt: new Date().toISOString(),
       tags: [type, values.language, 'bug-fix-related'],
     };
-    setSavedSnippets([...savedSnippets, newSnippet]);
-    toast({ title: "Snippet Saved!", description: `"${name}" has been saved.` });
+
+    try {
+      await addSnippet(newSnippet);
+      toast({ title: "Snippet Saved!", description: `"${name}" has been saved to Firestore.` });
+    } catch (error) {
+      console.error("Error saving snippet to Firestore:", error);
+      toast({ title: "Save Failed", description: "Could not save snippet to cloud.", variant: "destructive" });
+    }
   };
 
 
@@ -156,11 +165,11 @@ export function FixBugsForm() {
               <div className="mt-8 space-y-6 pt-4 border-t">
                 <div>
                   <h3 className="text-xl font-semibold mb-2">Bug Identification:</h3>
-                  <p className="prose prose-sm max-w-none p-3 border rounded-md bg-secondary/30">{fixResult.bugIdentification}</p>
+                  <p className="prose prose-sm dark:prose-invert max-w-none p-3 border rounded-md bg-secondary/30">{fixResult.bugIdentification}</p>
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold mb-2">Suggested Fix:</h3>
-                  <p className="prose prose-sm max-w-none p-3 border rounded-md bg-secondary/30">{fixResult.suggestedFix}</p>
+                  <p className="prose prose-sm dark:prose-invert max-w-none p-3 border rounded-md bg-secondary/30">{fixResult.suggestedFix}</p>
                 </div>
                 {fixResult.fixedCodeSnippet && (
                   <div>
@@ -183,18 +192,19 @@ export function FixBugsForm() {
                       )}
                     />
                   <div className="flex gap-2 flex-wrap">
-                    <Button onClick={() => handleSaveSnippet(form.getValues("codeSnippet"), 'original')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out">
+                    <Button onClick={() => handleSaveSnippet(form.getValues("codeSnippet"), 'original')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
                       <Save className="mr-2 h-4 w-4" />
                       Save Original
                     </Button>
                     {fixResult.fixedCodeSnippet && (
-                      <Button onClick={() => handleSaveSnippet(fixResult.fixedCodeSnippet!, 'fixed')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out">
+                      <Button onClick={() => handleSaveSnippet(fixResult.fixedCodeSnippet!, 'fixed')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
                         <Save className="mr-2 h-4 w-4" />
                         Save Fixed
                       </Button>
                     )}
                   </div>
                 </div>
+                {!user && <p className="text-sm text-muted-foreground">Sign in to save snippets.</p>}
               </div>
             )}
           </form>

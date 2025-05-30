@@ -17,13 +17,27 @@ import { useToast } from '@/hooks/use-toast';
 import { optimizeCodeSnippet, type OptimizeCodeSnippetOutput } from '@/ai/flows/optimize-code-snippet';
 import { PROGRAMMING_LANGUAGES, DEFAULT_LANGUAGE } from '@/lib/constants';
 import type { SavedSnippet } from '@/types';
-import { useLocalStorage } from '@/hooks/use-local-storage';
-import { SNIPPETS_STORAGE_KEY } from '@/lib/snippet-storage';
 import { Input } from './ui/input';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { addSnippet } from '@/lib/firestore'; // Firestore
+import { useAuth } from '@/context/auth-context'; // Auth
+
+const optimizationGoals = [
+  { value: 'performance', label: 'Improve Performance' },
+  { value: 'readability', label: 'Enhance Readability' },
+  { value: 'conciseness', label: 'Reduce Code Length' },
+  { value: 'modernize', label: 'Convert to Modern Syntax' },
+  { value: 'general', label: 'General Optimization' },
+] as const;
+
+type OptimizationGoalValue = typeof optimizationGoals[number]['value'];
 
 const optimizeCodeSchema = z.object({
   codeSnippet: z.string().min(1, { message: "Code snippet cannot be empty." }),
   language: z.string().min(1, { message: "Please select a language." }),
+  optimizationGoal: z.enum(optimizationGoals.map(g => g.value) as [OptimizationGoalValue, ...OptimizationGoalValue[]], {
+    errorMap: () => ({ message: "Please select an optimization goal." })
+  }),
   snippetName: z.string().optional(),
 });
 
@@ -33,13 +47,14 @@ export function OptimizeCodeForm() {
   const [optimizationResult, setOptimizationResult] = useState<OptimizeCodeSnippetOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const [savedSnippets, setSavedSnippets] = useLocalStorage<SavedSnippet[]>(SNIPPETS_STORAGE_KEY, []);
+  const { user } = useAuth();
 
   const form = useForm<OptimizeCodeFormValues>({
     resolver: zodResolver(optimizeCodeSchema),
     defaultValues: {
       codeSnippet: '',
       language: DEFAULT_LANGUAGE,
+      optimizationGoal: 'general',
       snippetName: '',
     },
   });
@@ -48,9 +63,13 @@ export function OptimizeCodeForm() {
     setIsLoading(true);
     setOptimizationResult(null);
     try {
-      const result = await optimizeCodeSnippet({ codeSnippet: data.codeSnippet, language: data.language });
+      const result = await optimizeCodeSnippet({ 
+        codeSnippet: data.codeSnippet, 
+        language: data.language,
+        optimizationGoal: data.optimizationGoal,
+      });
       setOptimizationResult(result);
-      form.setValue("snippetName", `${data.language}_optimization_${data.codeSnippet.substring(0,20).replace(/\s+/g, '_')}`);
+      form.setValue("snippetName", `${data.language}_${data.optimizationGoal}_${data.codeSnippet.substring(0,15).replace(/\s+/g, '_')}`);
     } catch (error) {
       console.error("Error optimizing code:", error);
       toast({
@@ -63,7 +82,11 @@ export function OptimizeCodeForm() {
     }
   };
 
-  const handleSaveSnippet = (codeToSave: string, type: 'original' | 'optimized') => {
+  const handleSaveSnippet = async (codeToSave: string, type: 'original' | 'optimized') => {
+    if (!user) {
+      toast({ title: "Sign In Required", description: "Please sign in to save snippets.", variant: "destructive" });
+      return;
+    }
     const values = form.getValues();
     if (!codeToSave) {
       toast({ title: "Nothing to save", description: "No code to save.", variant: "destructive" });
@@ -73,17 +96,22 @@ export function OptimizeCodeForm() {
       ? `${values.snippetName}_${type}`
       : `${type === 'optimized' ? 'Optimized' : 'Original'} ${values.language} snippet ${new Date().toLocaleTimeString()}`;
     
-    const newSnippet: SavedSnippet = {
-      id: Date.now().toString(),
+    const newSnippet: Omit<SavedSnippet, 'id' | 'createdAt'> = {
+      userId: user.uid,
       name,
       code: codeToSave,
       language: values.language,
-      description: type === 'optimized' ? optimizationResult?.explanation : 'Original code for optimization.',
-      createdAt: new Date().toISOString(),
-      tags: [type, values.language, 'optimization-related'],
+      description: type === 'optimized' ? optimizationResult?.explanation : `Original code for ${values.optimizationGoal} optimization.`,
+      tags: [type, values.language, 'optimization-related', values.optimizationGoal],
     };
-    setSavedSnippets([...savedSnippets, newSnippet]);
-    toast({ title: "Snippet Saved!", description: `"${name}" has been saved.` });
+
+    try {
+      await addSnippet(newSnippet);
+      toast({ title: "Snippet Saved!", description: `"${name}" has been saved to Firestore.` });
+    } catch (error) {
+      console.error("Error saving snippet to Firestore:", error);
+      toast({ title: "Save Failed", description: "Could not save snippet to cloud.", variant: "destructive" });
+    }
   };
 
   return (
@@ -118,30 +146,60 @@ export function OptimizeCodeForm() {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="language"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Programming Language</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="language"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Programming Language</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select language" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {PROGRAMMING_LANGUAGES.map((lang) => (
+                          <SelectItem key={lang.value} value={lang.value}>
+                            {lang.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="optimizationGoal"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel>Optimization Goal</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select language" />
-                      </SelectTrigger>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="flex flex-col space-y-1"
+                      >
+                        {optimizationGoals.map(goal => (
+                           <FormItem key={goal.value} className="flex items-center space-x-3 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value={goal.value} />
+                            </FormControl>
+                            <FormLabel className="font-normal">
+                              {goal.label}
+                            </FormLabel>
+                          </FormItem>
+                        ))}
+                      </RadioGroup>
                     </FormControl>
-                    <SelectContent>
-                      {PROGRAMMING_LANGUAGES.map((lang) => (
-                        <SelectItem key={lang.value} value={lang.value}>
-                          {lang.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <Button type="submit" disabled={isLoading} className="w-full md:w-auto animate-pop-out hover:pop-out active:pop-out">
               {isLoading ? (
                 <Sparkles className="mr-2 h-4 w-4 animate-spin" />
@@ -159,7 +217,7 @@ export function OptimizeCodeForm() {
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold mb-2">Explanation:</h3>
-                  <p className="prose prose-sm max-w-none p-3 border rounded-md bg-secondary/30">{optimizationResult.explanation}</p>
+                  <div className="prose prose-sm dark:prose-invert max-w-none p-3 border rounded-md bg-secondary/30 whitespace-pre-wrap">{optimizationResult.explanation}</div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 items-end">
                   <FormField
@@ -176,16 +234,17 @@ export function OptimizeCodeForm() {
                     )}
                   />
                   <div className="flex gap-2 flex-wrap">
-                    <Button onClick={() => handleSaveSnippet(form.getValues("codeSnippet"), 'original')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out">
+                    <Button onClick={() => handleSaveSnippet(form.getValues("codeSnippet"), 'original')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
                       <Save className="mr-2 h-4 w-4" />
                       Save Original
                     </Button>
-                    <Button onClick={() => handleSaveSnippet(optimizationResult.optimizedCode, 'optimized')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out">
+                    <Button onClick={() => handleSaveSnippet(optimizationResult.optimizedCode, 'optimized')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
                       <Save className="mr-2 h-4 w-4" />
                       Save Optimized
                     </Button>
                   </div>
                 </div>
+                 {!user && <p className="text-sm text-muted-foreground">Sign in to save snippets.</p>}
               </div>
             )}
           </form>
