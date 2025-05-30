@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { BookOpenText, Sparkles, Save, Loader2 } from 'lucide-react'; // Added Loader2
+import { BookOpenText, Sparkles, Save, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -33,7 +33,7 @@ type ExplainCodeFormValues = z.infer<typeof explainCodeSchema>;
 export function ExplainCodeForm() {
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false); // New state for save operation
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -80,7 +80,7 @@ export function ExplainCodeForm() {
       return;
     }
     
-    setIsSaving(true); // Start saving loading state
+    setIsSaving(true);
     const name = values.snippetName || `Explained ${values.programmingLanguage} snippet ${new Date().toLocaleTimeString()}`;
     
     const newSnippet: Omit<SavedSnippet, 'id' | 'createdAt'> = {
@@ -99,7 +99,7 @@ export function ExplainCodeForm() {
       console.error("Error saving snippet to Firestore:", error);
       let description = "Could not save snippet to cloud. Please try again.";
       if (error.message && (error.message.toLowerCase().includes("permission denied") || error.message.toLowerCase().includes("missing or insufficient permissions"))) {
-        description = "Save failed due to permission issues. Ensure Firestore rules allow writes for authenticated users or that Firestore is enabled in your Firebase project.";
+        description = "Save failed: Permission denied. Please ensure Firestore rules allow writes for authenticated users or that Firestore is enabled and rules are published in your Firebase project.";
       } else if (error.message) {
         description = error.message;
       }
@@ -110,13 +110,13 @@ export function ExplainCodeForm() {
         duration: 9000,
       });
     } finally {
-      setIsSaving(false); // End saving loading state
+      setIsSaving(false);
     }
   };
 
   return (
     <Card className="w-full animate-pop-out shadow-xl">
-      <CardHeader>
+      <CardHeader className="bg-primary/10 rounded-t-lg">
         <div className="flex items-center gap-3">
           <BookOpenText className="h-8 w-8 text-primary" />
           <div>

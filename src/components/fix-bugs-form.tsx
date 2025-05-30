@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Bug, Sparkles, Save, ShieldAlert, Loader2 } from 'lucide-react'; // Added Loader2
+import { Bug, Sparkles, Save, ShieldAlert, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -32,8 +32,8 @@ type FixBugsFormValues = z.infer<typeof fixBugsSchema>;
 export function FixBugsForm() {
   const [fixResult, setFixResult] = useState<FixBugsInCodeOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSavingOriginal, setIsSavingOriginal] = useState(false); // New state
-  const [isSavingFixed, setIsSavingFixed] = useState(false); // New state
+  const [isSavingOriginal, setIsSavingOriginal] = useState(false);
+  const [isSavingFixed, setIsSavingFixed] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -99,7 +99,7 @@ export function FixBugsForm() {
       console.error("Error saving snippet to Firestore:", error);
       let description = "Could not save snippet to cloud. Please try again.";
       if (error.message && (error.message.toLowerCase().includes("permission denied") || error.message.toLowerCase().includes("missing or insufficient permissions"))) {
-        description = "Save failed due to permission issues. Ensure Firestore rules allow writes for authenticated users or that Firestore is enabled in your Firebase project.";
+        description = "Save failed: Permission denied. Please ensure Firestore rules allow writes for authenticated users or that Firestore is enabled and rules are published in your Firebase project.";
       } else if (error.message) {
         description = error.message;
       }
@@ -118,7 +118,7 @@ export function FixBugsForm() {
 
   return (
     <Card className="w-full animate-pop-out shadow-xl">
-      <CardHeader>
+      <CardHeader className="bg-primary/10 rounded-t-lg">
         <div className="flex items-center gap-3">
           <Bug className="h-8 w-8 text-primary" />
           <div>
