@@ -136,35 +136,12 @@ export function ChatView() {
   const handleSendMessage = async () => {
     const textToSend = inputValue.trim();
     const imageToSend = selectedImage;
-    let audioToSend = recordedAudioDataUri; // Use let as it might be updated if recording
+    let audioToSend = recordedAudioDataUri; 
 
     if (isRecording) {
-        stopRecording(); // This will set recordedAudioDataUri via onstop after a short delay
-        // We need to ensure audioToSend reflects the newly recorded audio.
-        // Since onstop is async, we might not have audioToSend immediately here.
-        // A better UX might be to disable send until audio is processed or change Send to "Stop & Send".
-        // For now, we'll try to send. If audioDataUri is not set by the time AI call happens, it won't be included.
-        // Or, we can await a promise that resolves when onstop sets the URI.
-        // Let's try to use the state that will be updated by onstop
-        toast({ title: "Audio recording stopped", description: "Preparing to send audio..."});
-        // Attempt to get the latest audio after stopping. This is a bit racy.
-        // It's better if stopRecording sets a flag and an effect sends the message.
-        // For now, the user might have to click send again if the audio isn't ready immediately.
-        // Let's assume if they clicked Send while recording, they intend for *that* audio.
-        // We'll use the `recordedAudioDataUri` which *should* be set by stopRecording().
-        // To make it more robust, we could delay the send slightly or use a callback.
-        // A quick fix: if isRecording, stop, then re-evaluate audioToSend from state.
-        // But state updates are async.
-        // Let's show a toast and user may need to click again.
-        // If audioDataUri is already set (from a previous recording they didn't clear), it will be sent.
-        // If new audio is being processed, it might not be ready.
-         // This is tricky. For simplicity, if recording and send is hit, stop recording.
-        // The user will then see the recorded audio preview and can click send again.
-        // This avoids complex state management for this interaction.
-        if (recordedAudioDataUri) audioToSend = recordedAudioDataUri; // Use if already there
+        stopRecording(); 
+        if (recordedAudioDataUri) audioToSend = recordedAudioDataUri; 
         else {
-          // If we just stopped, recordedAudioDataUri might not be set yet.
-          // Tell user to click send again.
            toast({ title: "Recording stopped.", description: "Audio is processing. Click send again to include it."});
            return;
         }
@@ -182,22 +159,19 @@ export function ChatView() {
       text: textToSend,
       sender: 'user',
       timestamp: new Date(),
-      imageDataUri: imageToSend || undefined, // Add image to user message for display
+      imageDataUri: imageToSend || undefined, 
     };
     
-    // Prepare history for the AI flow (all messages *before* this new one)
     const historyForAI = messages.map(msg => ({
       sender: msg.sender,
       text: msg.text,
       imageDataUri: msg.imageDataUri,
     }));
 
-    // Add user message to UI optimistically
     setMessages(prevMessages => [...prevMessages, userMessage]);
     
     setInputValue('');
     setSelectedImage(null);
-    // We will clear recordedAudioDataUri after successful send.
 
     try {
       const aiResult = await chatWithAi({
@@ -213,17 +187,25 @@ export function ChatView() {
         timestamp: new Date(),
       };
       setMessages(prevMessages => [...prevMessages, aiResponse]);
-      setRecordedAudioDataUri(null); // Clear audio after successful send
+      setRecordedAudioDataUri(null); 
     } catch (error) {
       console.error("Error chatting with AI:", error);
+      let toastTitle = "AI Chat Error";
+      let toastDescription = "An unknown error occurred while fetching AI response.";
+
+      if (error instanceof Error) {
+        toastDescription = error.message;
+        if (error.message.includes("503") || error.message.toLowerCase().includes("overloaded") || error.message.toLowerCase().includes("service unavailable")) {
+          toastTitle = "AI Service Temporarily Unavailable";
+          toastDescription = "The AI model is currently overloaded or unavailable. Please try again in a few moments.";
+        }
+      }
+      
       toast({
         variant: "destructive",
-        title: "AI Chat Error",
-        description: error instanceof Error ? error.message : "An unknown error occurred while fetching AI response.",
+        title: toastTitle,
+        description: toastDescription,
       });
-      // Optionally, add an error message from AI to the chat
-      // Or revert the optimistic user message (more complex)
-      // For now, user message stays, AI error shown as toast.
     } finally {
       setIsLoading(false);
     }
@@ -245,7 +227,6 @@ export function ChatView() {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
             mediaRecorderRef.current.stop();
         }
-        // Ensure media streams are cleaned up
         if (mediaRecorderRef.current?.stream) {
             mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
         }
@@ -284,7 +265,7 @@ export function ChatView() {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex-grow flex flex-col p-0 overflow-hidden"> {/* Added overflow-hidden */}
+      <CardContent className="flex-grow flex flex-col p-0 overflow-hidden">
         <ScrollArea className="flex-grow p-4" ref={scrollAreaRef}>
           <div className="space-y-4">
             {messages.map(msg => (
@@ -372,7 +353,7 @@ export function ChatView() {
             </Alert>
         )}
 
-        <div className="p-4 border-t bg-background"> {/* Ensure this part doesn't shrink */}
+        <div className="p-4 border-t bg-background"> 
           <div className="flex items-center space-x-2">
             <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} className="hidden" />
             <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} disabled={isLoading || isRecording} className="animate-pop-out hover:pop-out">
