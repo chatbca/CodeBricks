@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Wand2, Sparkles, Save } from 'lucide-react';
+import { Wand2, Sparkles, Save, Loader2 } from 'lucide-react'; // Added Loader2
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,8 +19,8 @@ import { generateCode } from '@/ai/flows/generate-code-from-prompt';
 import { PROGRAMMING_LANGUAGES, DEFAULT_LANGUAGE } from '@/lib/constants';
 import type { SavedSnippet } from '@/types';
 import { Input } from './ui/input';
-import { addSnippet } from '@/lib/firestore'; // Firestore
-import { useAuth } from '@/context/auth-context'; // Auth
+import { addSnippet } from '@/lib/firestore';
+import { useAuth } from '@/context/auth-context';
 
 const generateCodeSchema = z.object({
   prompt: z.string().min(10, { message: "Prompt must be at least 10 characters." }),
@@ -34,6 +34,7 @@ type GenerateCodeFormValues = z.infer<typeof generateCodeSchema>;
 export function GenerateCodeForm() {
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // New state for save operation
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -51,7 +52,6 @@ export function GenerateCodeForm() {
     setIsLoading(true);
     setGeneratedCode(null);
     try {
-      // TODO: Pass data.aiModel to the generateCode flow if it supports model selection
       const result = await generateCode({ prompt: data.prompt, language: data.language });
       setGeneratedCode(result.code);
       form.setValue("snippetName", `${data.language}_${data.prompt.substring(0,20).replace(/\s+/g, '_')}`);
@@ -77,6 +77,8 @@ export function GenerateCodeForm() {
       toast({ title: "Nothing to save", description: "Generate some code first.", variant: "destructive" });
       return;
     }
+    
+    setIsSaving(true); // Start saving loading state
     const name = values.snippetName || `Generated ${values.language} snippet ${new Date().toLocaleTimeString()}`;
     
     const newSnippet: Omit<SavedSnippet, 'id' | 'createdAt'> = {
@@ -90,7 +92,7 @@ export function GenerateCodeForm() {
 
     try {
       await addSnippet(newSnippet);
-      toast({ title: "Snippet Saved!", description: `"${name}" has been saved to Firestore.` });
+      toast({ title: "Snippet Saved!", description: `"${name}" has been saved. View it in 'Saved Snippets'.` });
     } catch (error: any) {
       console.error("Error saving snippet to Firestore:", error);
       let description = "Could not save snippet to cloud. Please try again.";
@@ -105,6 +107,8 @@ export function GenerateCodeForm() {
         description: description,
         duration: 9000,
       });
+    } finally {
+      setIsSaving(false); // End saving loading state
     }
   };
 
@@ -213,9 +217,13 @@ export function GenerateCodeForm() {
                         </FormItem>
                       )}
                     />
-                    <Button onClick={handleSaveSnippet} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Snippet
+                    <Button onClick={handleSaveSnippet} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading || isSaving}>
+                      {isSaving ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="mr-2 h-4 w-4" />
+                      )}
+                      {isSaving ? 'Saving...' : 'Save Snippet'}
                     </Button>
                   </div>
                   {!user && <p className="text-sm text-muted-foreground">Sign in to save snippets.</p>}

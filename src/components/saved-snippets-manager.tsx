@@ -24,11 +24,13 @@ export function SavedSnippetsManager() {
   const [snippets, setSnippets] = useState<SavedSnippet[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoadingSnippets, setIsLoadingSnippets] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null); // To display persistent fetch error
   const { toast } = useToast();
 
   const fetchSnippets = useCallback(async () => {
     if (user) {
       setIsLoadingSnippets(true);
+      setFetchError(null); // Clear previous errors
       try {
         const userSnippets = await getSnippetsForUser(user.uid);
         setSnippets(userSnippets);
@@ -40,6 +42,7 @@ export function SavedSnippetsManager() {
         } else if (error.message) {
             description = error.message;
         }
+        setFetchError(description); // Set persistent error message
         toast({
           variant: "destructive",
           title: "Error Fetching Snippets",
@@ -52,7 +55,8 @@ export function SavedSnippetsManager() {
       }
     } else {
       setSnippets([]); 
-      setIsLoadingSnippets(false); // Also set loading to false if no user
+      setIsLoadingSnippets(false); 
+      setFetchError(null); // Clear errors if user is not logged in
     }
   }, [user, toast]);
 
@@ -126,7 +130,7 @@ export function SavedSnippetsManager() {
           <div>
             <CardTitle className="text-2xl font-semibold">Saved Snippets</CardTitle>
             <CardDescription>
-              {user ? "Manage your code bricks saved to the cloud." : "Sign in to manage and save your code bricks."}
+              {user ? "Manage your code bricks saved to your account in the cloud." : "Sign in to manage and save your code bricks."}
             </CardDescription>
           </div>
         </div>
@@ -162,11 +166,22 @@ export function SavedSnippetsManager() {
             {isLoadingSnippets && (
                 <div className="flex items-center justify-center py-10">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="ml-2 text-muted-foreground">Loading snippets...</p>
+                    <p className="ml-2 text-muted-foreground">Loading your snippets...</p>
                 </div>
             )}
 
-            {!isLoadingSnippets && filteredSnippets.length === 0 && searchTerm && (
+            {!isLoadingSnippets && fetchError && (
+                 <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Could Not Load Snippets</AlertTitle>
+                    <AlertDescription>
+                      {fetchError} Please ensure your Firestore database is set up correctly and security rules are in place.
+                      <Button variant="link" onClick={fetchSnippets} className="p-0 h-auto ml-1">Try again</Button>.
+                    </AlertDescription>
+                </Alert>
+            )}
+
+            {!isLoadingSnippets && !fetchError && filteredSnippets.length === 0 && searchTerm && (
                  <Alert>
                     <CornerDownLeft className="h-4 w-4" />
                     <AlertTitle>No Snippets Match Your Search</AlertTitle>
@@ -175,18 +190,18 @@ export function SavedSnippetsManager() {
                     </AlertDescription>
                 </Alert>
             )}
-             {!isLoadingSnippets && snippets.length === 0 && !searchTerm && (
+             {!isLoadingSnippets && !fetchError && snippets.length === 0 && !searchTerm && (
                  <Alert>
                     <CornerDownLeft className="h-4 w-4" />
                     <AlertTitle>No Snippets Saved Yet</AlertTitle>
                     <AlertDescription>
-                    Use the 'Save Snippet' button in other tools to save your code bricks here. They will be saved to your account in the cloud.
+                    Use the 'Save Snippet' button in other tools to save your code bricks to your account. They will appear here.
                     </AlertDescription>
                 </Alert>
             )}
 
 
-            {!isLoadingSnippets && filteredSnippets.length > 0 && (
+            {!isLoadingSnippets && !fetchError && filteredSnippets.length > 0 && (
               <ScrollArea className="h-[500px] pr-3">
                 <div className="space-y-4">
                 {filteredSnippets.map(snippet => (

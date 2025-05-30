@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Zap, Sparkles, Save, Gauge } from 'lucide-react';
+import { Zap, Sparkles, Save, Gauge, Loader2 } from 'lucide-react'; // Added Loader2
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,8 +19,8 @@ import { PROGRAMMING_LANGUAGES, DEFAULT_LANGUAGE } from '@/lib/constants';
 import type { SavedSnippet } from '@/types';
 import { Input } from './ui/input';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { addSnippet } from '@/lib/firestore'; // Firestore
-import { useAuth } from '@/context/auth-context'; // Auth
+import { addSnippet } from '@/lib/firestore';
+import { useAuth } from '@/context/auth-context';
 
 const optimizationGoals = [
   { value: 'performance', label: 'Improve Performance' },
@@ -46,6 +46,8 @@ type OptimizeCodeFormValues = z.infer<typeof optimizeCodeSchema>;
 export function OptimizeCodeForm() {
   const [optimizationResult, setOptimizationResult] = useState<OptimizeCodeSnippetOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSavingOriginal, setIsSavingOriginal] = useState(false); // New state
+  const [isSavingOptimized, setIsSavingOptimized] = useState(false); // New state
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -92,6 +94,10 @@ export function OptimizeCodeForm() {
       toast({ title: "Nothing to save", description: "No code to save.", variant: "destructive" });
       return;
     }
+
+    if (type === 'original') setIsSavingOriginal(true);
+    if (type === 'optimized') setIsSavingOptimized(true);
+
     const name = values.snippetName 
       ? `${values.snippetName}_${type}`
       : `${type === 'optimized' ? 'Optimized' : 'Original'} ${values.language} snippet ${new Date().toLocaleTimeString()}`;
@@ -107,7 +113,7 @@ export function OptimizeCodeForm() {
 
     try {
       await addSnippet(newSnippet);
-      toast({ title: "Snippet Saved!", description: `"${name}" has been saved to Firestore.` });
+      toast({ title: "Snippet Saved!", description: `"${name}" has been saved. View it in 'Saved Snippets'.` });
     } catch (error: any) {
       console.error("Error saving snippet to Firestore:", error);
       let description = "Could not save snippet to cloud. Please try again.";
@@ -122,6 +128,9 @@ export function OptimizeCodeForm() {
         description: description,
         duration: 9000,
       });
+    } finally {
+      if (type === 'original') setIsSavingOriginal(false);
+      if (type === 'optimized') setIsSavingOptimized(false);
     }
   };
 
@@ -245,13 +254,21 @@ export function OptimizeCodeForm() {
                     )}
                   />
                   <div className="flex gap-2 flex-wrap">
-                    <Button onClick={() => handleSaveSnippet(form.getValues("codeSnippet"), 'original')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Original
+                    <Button onClick={() => handleSaveSnippet(form.getValues("codeSnippet"), 'original')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading || isSavingOriginal || isSavingOptimized}>
+                      {isSavingOriginal ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="mr-2 h-4 w-4" />
+                      )}
+                      {isSavingOriginal ? 'Saving...' : 'Save Original'}
                     </Button>
-                    <Button onClick={() => handleSaveSnippet(optimizationResult.optimizedCode, 'optimized')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Optimized
+                    <Button onClick={() => handleSaveSnippet(optimizationResult.optimizedCode, 'optimized')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading || isSavingOriginal || isSavingOptimized}>
+                      {isSavingOptimized ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="mr-2 h-4 w-4" />
+                      )}
+                      {isSavingOptimized ? 'Saving...' : 'Save Optimized'}
                     </Button>
                   </div>
                 </div>

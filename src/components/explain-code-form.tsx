@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { BookOpenText, Sparkles, Save } from 'lucide-react';
+import { BookOpenText, Sparkles, Save, Loader2 } from 'lucide-react'; // Added Loader2
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -18,8 +18,8 @@ import { explainCodeSnippet } from '@/ai/flows/explain-code-snippet';
 import { PROGRAMMING_LANGUAGES, DEFAULT_LANGUAGE } from '@/lib/constants';
 import type { SavedSnippet } from '@/types';
 import { Input } from './ui/input';
-import { addSnippet } from '@/lib/firestore'; // Firestore
-import { useAuth } from '@/context/auth-context'; // Auth
+import { addSnippet } from '@/lib/firestore';
+import { useAuth } from '@/context/auth-context';
 
 const explainCodeSchema = z.object({
   codeSnippet: z.string().min(1, { message: "Code snippet cannot be empty." }),
@@ -33,6 +33,7 @@ type ExplainCodeFormValues = z.infer<typeof explainCodeSchema>;
 export function ExplainCodeForm() {
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // New state for save operation
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -50,7 +51,6 @@ export function ExplainCodeForm() {
     setIsLoading(true);
     setExplanation(null);
     try {
-      // TODO: Pass data.aiModel to the explainCodeSnippet flow if it supports model selection
       const result = await explainCodeSnippet({ 
         codeSnippet: data.codeSnippet, 
         programmingLanguage: data.programmingLanguage 
@@ -79,6 +79,8 @@ export function ExplainCodeForm() {
       toast({ title: "Nothing to save", description: "Enter some code first.", variant: "destructive" });
       return;
     }
+    
+    setIsSaving(true); // Start saving loading state
     const name = values.snippetName || `Explained ${values.programmingLanguage} snippet ${new Date().toLocaleTimeString()}`;
     
     const newSnippet: Omit<SavedSnippet, 'id' | 'createdAt'> = {
@@ -92,7 +94,7 @@ export function ExplainCodeForm() {
 
     try {
       await addSnippet(newSnippet);
-      toast({ title: "Snippet Saved!", description: `"${name}" (original code) has been saved to Firestore.` });
+      toast({ title: "Snippet Saved!", description: `"${name}" (original code) has been saved. View it in 'Saved Snippets'.` });
     } catch (error: any) {
       console.error("Error saving snippet to Firestore:", error);
       let description = "Could not save snippet to cloud. Please try again.";
@@ -107,6 +109,8 @@ export function ExplainCodeForm() {
         description: description,
         duration: 9000,
       });
+    } finally {
+      setIsSaving(false); // End saving loading state
     }
   };
 
@@ -217,9 +221,13 @@ export function ExplainCodeForm() {
                         </FormItem>
                       )}
                     />
-                  <Button onClick={handleSaveSnippet} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Original Code
+                  <Button onClick={handleSaveSnippet} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading || isSaving}>
+                     {isSaving ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="mr-2 h-4 w-4" />
+                      )}
+                      {isSaving ? 'Saving...' : 'Save Original Code'}
                   </Button>
                 </div>
                 {!user && <p className="text-sm text-muted-foreground">Sign in to save snippets.</p>}

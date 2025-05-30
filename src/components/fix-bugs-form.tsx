@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Bug, Sparkles, Save, ShieldAlert } from 'lucide-react';
+import { Bug, Sparkles, Save, ShieldAlert, Loader2 } from 'lucide-react'; // Added Loader2
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -18,8 +18,8 @@ import { fixBugsInCode, type FixBugsInCodeOutput } from '@/ai/flows/fix-bugs-in-
 import { PROGRAMMING_LANGUAGES, DEFAULT_LANGUAGE } from '@/lib/constants';
 import type { SavedSnippet } from '@/types';
 import { Input } from './ui/input';
-import { addSnippet } from '@/lib/firestore'; // Firestore
-import { useAuth } from '@/context/auth-context'; // Auth
+import { addSnippet } from '@/lib/firestore';
+import { useAuth } from '@/context/auth-context';
 
 const fixBugsSchema = z.object({
   codeSnippet: z.string().min(1, { message: "Code snippet cannot be empty." }),
@@ -32,6 +32,8 @@ type FixBugsFormValues = z.infer<typeof fixBugsSchema>;
 export function FixBugsForm() {
   const [fixResult, setFixResult] = useState<FixBugsInCodeOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSavingOriginal, setIsSavingOriginal] = useState(false); // New state
+  const [isSavingFixed, setIsSavingFixed] = useState(false); // New state
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -73,6 +75,10 @@ export function FixBugsForm() {
       toast({ title: "Nothing to save", description: "No code to save.", variant: "destructive" });
       return;
     }
+
+    if (type === 'original') setIsSavingOriginal(true);
+    if (type === 'fixed') setIsSavingFixed(true);
+
     const name = values.snippetName 
       ? `${values.snippetName}_${type}` 
       : `${type === 'fixed' ? 'Fixed' : 'Original'} ${values.language} snippet ${new Date().toLocaleTimeString()}`;
@@ -88,7 +94,7 @@ export function FixBugsForm() {
 
     try {
       await addSnippet(newSnippet);
-      toast({ title: "Snippet Saved!", description: `"${name}" has been saved to Firestore.` });
+      toast({ title: "Snippet Saved!", description: `"${name}" has been saved. View it in 'Saved Snippets'.` });
     } catch (error: any) {
       console.error("Error saving snippet to Firestore:", error);
       let description = "Could not save snippet to cloud. Please try again.";
@@ -103,6 +109,9 @@ export function FixBugsForm() {
         description: description,
         duration: 9000,
       });
+    } finally {
+      if (type === 'original') setIsSavingOriginal(false);
+      if (type === 'fixed') setIsSavingFixed(false);
     }
   };
 
@@ -203,14 +212,22 @@ export function FixBugsForm() {
                       )}
                     />
                   <div className="flex gap-2 flex-wrap">
-                    <Button onClick={() => handleSaveSnippet(form.getValues("codeSnippet"), 'original')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Original
+                    <Button onClick={() => handleSaveSnippet(form.getValues("codeSnippet"), 'original')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading || isSavingOriginal || isSavingFixed}>
+                      {isSavingOriginal ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="mr-2 h-4 w-4" />
+                      )}
+                      {isSavingOriginal ? 'Saving...' : 'Save Original'}
                     </Button>
                     {fixResult.fixedCodeSnippet && (
-                      <Button onClick={() => handleSaveSnippet(fixResult.fixedCodeSnippet!, 'fixed')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
-                        <Save className="mr-2 h-4 w-4" />
-                        Save Fixed
+                      <Button onClick={() => handleSaveSnippet(fixResult.fixedCodeSnippet!, 'fixed')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading || isSavingOriginal || isSavingFixed}>
+                        {isSavingFixed ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                            <Save className="mr-2 h-4 w-4" />
+                        )}
+                        {isSavingFixed ? 'Saving...' : 'Save Fixed'}
                       </Button>
                     )}
                   </div>

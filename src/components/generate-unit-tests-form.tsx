@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ClipboardCheck, Sparkles, Save } from 'lucide-react';
+import { ClipboardCheck, Sparkles, Save, Loader2 } from 'lucide-react'; // Added Loader2
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,12 +15,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CodeDisplay } from '@/components/code-display';
 import { ModelSelector } from '@/components/model-selector';
 import { useToast } from '@/hooks/use-toast';
-import { generateUnitTests } from '@/ai/flows/generate-unit-tests-flow'; // New flow
+import { generateUnitTests } from '@/ai/flows/generate-unit-tests-flow';
 import { PROGRAMMING_LANGUAGES, DEFAULT_LANGUAGE } from '@/lib/constants';
 import type { SavedSnippet } from '@/types';
 import { Input } from './ui/input';
-import { addSnippet } from '@/lib/firestore'; // Firestore
-import { useAuth } from '@/context/auth-context'; // Auth
+import { addSnippet } from '@/lib/firestore';
+import { useAuth } from '@/context/auth-context';
 
 const TESTING_FRAMEWORKS = [
   { value: 'jest', label: 'Jest (JavaScript/TypeScript)' },
@@ -53,6 +53,8 @@ type GenerateTestsFormValues = z.infer<typeof generateTestsSchema>;
 export function GenerateUnitTestsForm() {
   const [generatedTests, setGeneratedTests] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSavingOriginal, setIsSavingOriginal] = useState(false); // New state
+  const [isSavingTest, setIsSavingTest] = useState(false); // New state
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -71,7 +73,6 @@ export function GenerateUnitTestsForm() {
     setIsLoading(true);
     setGeneratedTests(null);
     try {
-      // TODO: Pass data.aiModel to the generateUnitTests flow if it supports model selection
       const result = await generateUnitTests({ 
         codeToTest: data.codeSnippet, 
         language: data.language,
@@ -101,6 +102,10 @@ export function GenerateUnitTestsForm() {
       toast({ title: "Nothing to save", description: "No code to save.", variant: "destructive" });
       return;
     }
+
+    if (type === 'original_code') setIsSavingOriginal(true);
+    if (type === 'test_code') setIsSavingTest(true);
+    
     const name = values.snippetName 
       ? `${values.snippetName}_${type}` 
       : `${type === 'test_code' ? 'Tests for' : 'Original'} ${values.language} snippet ${new Date().toLocaleTimeString()}`;
@@ -109,14 +114,14 @@ export function GenerateUnitTestsForm() {
       userId: user.uid,
       name,
       code: codeToSave,
-      language: type === 'test_code' ? values.language : values.language, // Test language often same as code language
+      language: type === 'test_code' ? values.language : values.language, 
       description: type === 'test_code' ? `Generated ${values.testFramework} tests for the original code.` : 'Original code for which tests were generated.',
       tags: [type, values.language, values.testFramework, values.aiModel, 'unit-tests'],
     };
     
     try {
       await addSnippet(newSnippet);
-      toast({ title: "Snippet Saved!", description: `"${name}" has been saved to Firestore.` });
+      toast({ title: "Snippet Saved!", description: `"${name}" has been saved. View it in 'Saved Snippets'.` });
     } catch (error: any) {
       console.error("Error saving snippet to Firestore:", error);
       let description = "Could not save snippet to cloud. Please try again.";
@@ -131,6 +136,9 @@ export function GenerateUnitTestsForm() {
         description: description,
         duration: 9000,
       });
+    } finally {
+      if (type === 'original_code') setIsSavingOriginal(false);
+      if (type === 'test_code') setIsSavingTest(false);
     }
   };
 
@@ -247,7 +255,7 @@ export function GenerateUnitTestsForm() {
             {generatedTests && (
               <div className="mt-8 space-y-4 pt-4 border-t">
                 <h3 className="text-xl font-semibold">Generated Unit Tests:</h3>
-                <CodeDisplay code={generatedTests} language={form.getValues("language")} /> {/* Test language might differ, adjust if needed */}
+                <CodeDisplay code={generatedTests} language={form.getValues("language")} />
                 <div className="flex flex-col sm:flex-row gap-2 items-end">
                     <FormField
                       control={form.control}
@@ -263,13 +271,21 @@ export function GenerateUnitTestsForm() {
                       )}
                     />
                     <div className="flex gap-2 flex-wrap">
-                        <Button onClick={() => handleSaveSnippet(form.getValues("codeSnippet"), 'original_code')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
-                          <Save className="mr-2 h-4 w-4" />
-                          Save Original Code
+                        <Button onClick={() => handleSaveSnippet(form.getValues("codeSnippet"), 'original_code')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading || isSavingOriginal || isSavingTest}>
+                          {isSavingOriginal ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Save className="mr-2 h-4 w-4" />
+                          )}
+                          {isSavingOriginal ? 'Saving...' : 'Save Original Code'}
                         </Button>
-                        <Button onClick={() => handleSaveSnippet(generatedTests, 'test_code')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading}>
-                          <Save className="mr-2 h-4 w-4" />
-                          Save Test Code
+                        <Button onClick={() => handleSaveSnippet(generatedTests, 'test_code')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading || isSavingOriginal || isSavingTest}>
+                          {isSavingTest ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Save className="mr-2 h-4 w-4" />
+                          )}
+                          {isSavingTest ? 'Saving...' : 'Save Test Code'}
                         </Button>
                     </div>
                   </div>
