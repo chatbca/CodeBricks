@@ -2,8 +2,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { MessageSquare, Send, User, Bot, Sparkles, Paperclip, Mic, StopCircle, X, AlertTriangle } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // Added AvatarImage
+import { MessageSquare, Send, User, Blocks, Sparkles, Paperclip, Mic, StopCircle, X, AlertTriangle } from 'lucide-react'; // Changed Bot to Blocks
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -12,7 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from '@/lib/utils';
 import { chatWithAi } from '@/ai/flows/chat-with-ai-flow';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/context/auth-context'; // Added useAuth
+import { useAuth } from '@/context/auth-context';
 
 interface Message {
   id: string;
@@ -37,7 +37,7 @@ export function ChatView() {
   const audioChunksRef = useRef<Blob[]>([]);
 
   const { toast } = useToast();
-  const { user, signInWithGoogle } = useAuth(); // Get user and signInWithGoogle from auth context
+  const { user, signInWithGoogle } = useAuth();
 
   const requestMicrophonePermission = useCallback(async () => {
     try {
@@ -124,7 +124,7 @@ export function ChatView() {
       };
 
       mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' }); // Consider audio format for Gemini
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const reader = new FileReader();
         reader.onloadend = () => {
           setRecordedAudioDataUri(reader.result as string);
@@ -157,7 +157,7 @@ export function ChatView() {
     if (isRecording) {
       stopRecording();
     } else {
-      startRecording(); // Auth check is inside startRecording
+      startRecording(); 
     }
   };
   
@@ -305,7 +305,7 @@ export function ChatView() {
               >
                 {msg.sender === 'ai' && (
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback><Bot size={18} /></AvatarFallback>
+                    <AvatarFallback><Blocks size={18} /></AvatarFallback> {/* Changed Bot to Blocks */}
                   </Avatar>
                 )}
                 <div
@@ -338,7 +338,7 @@ export function ChatView() {
             {isLoading && messages[messages.length -1]?.sender === 'user' && (
                  <div className="flex items-end space-x-2 justify-start">
                     <Avatar className="h-8 w-8">
-                        <AvatarFallback><Bot size={18} /></AvatarFallback>
+                        <AvatarFallback><Blocks size={18} /></AvatarFallback> {/* Changed Bot to Blocks */}
                     </Avatar>
                     <div className="max-w-[70%] rounded-lg px-3 py-2 text-sm shadow bg-muted text-muted-foreground">
                         <Sparkles className="h-4 w-4 animate-spin" />
@@ -397,7 +397,7 @@ export function ChatView() {
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={() => user ? fileInputRef.current?.click() : handleImageSelect({} as any)} // Trigger auth check
+              onClick={() => user ? fileInputRef.current?.click() : handleImageSelect({} as any)} 
               disabled={isLoading || isRecording} 
               className="animate-pop-out hover:pop-out"
               aria-label={user ? "Attach image" : "Attach image (sign in required)"}
@@ -408,7 +408,7 @@ export function ChatView() {
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={handleToggleRecording} // Auth check is inside startRecording
+              onClick={handleToggleRecording} 
               disabled={isLoading || (hasMicrophonePermission === false && !user)} 
               className={cn("animate-pop-out hover:pop-out", isRecording && "text-destructive")}
               aria-label={user ? (isRecording ? 'Stop recording' : 'Start recording') : 'Start recording (sign in required)'}
@@ -443,3 +443,4 @@ export function ChatView() {
     </Card>
   );
 }
+
