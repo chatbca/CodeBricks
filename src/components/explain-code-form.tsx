@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { BookOpenText, Sparkles, Save, Loader2 } from 'lucide-react';
+import { BookOpenText, Sparkles, Save, Loader2, LogIn } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,7 +35,7 @@ export function ExplainCodeForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, signInWithGoogle } = useAuth();
 
   const form = useForm<ExplainCodeFormValues>({
     resolver: zodResolver(explainCodeSchema),
@@ -71,7 +71,13 @@ export function ExplainCodeForm() {
   
   const handleSaveSnippet = async () => {
     if (!user) {
-      toast({ title: "Sign In Required", description: "Please sign in to save snippets.", variant: "destructive" });
+      toast({ 
+        title: "Authentication Required", 
+        description: "Please sign in to save the original code snippet.", 
+        variant: "destructive",
+        action: <Button onClick={signInWithGoogle} className="animate-pop-out hover:pop-out active:pop-out">Sign In</Button>,
+        duration: 7000,
+      });
       return;
     }
     const values = form.getValues();
@@ -221,16 +227,15 @@ export function ExplainCodeForm() {
                         </FormItem>
                       )}
                     />
-                  <Button onClick={handleSaveSnippet} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading || isSaving}>
+                  <Button onClick={handleSaveSnippet} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={isLoading || isSaving}>
                      {isSaving ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : (
                         <Save className="mr-2 h-4 w-4" />
                       )}
-                      {isSaving ? 'Saving...' : 'Save Original Code'}
+                      {isSaving ? 'Saving...' : (user ? 'Save Original Code' : 'Sign In to Save')}
                   </Button>
                 </div>
-                {!user && <p className="text-sm text-muted-foreground">Sign in to save snippets.</p>}
               </div>
             )}
           </form>

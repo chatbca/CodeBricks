@@ -24,13 +24,13 @@ export function SavedSnippetsManager() {
   const [snippets, setSnippets] = useState<SavedSnippet[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoadingSnippets, setIsLoadingSnippets] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null); // To display persistent fetch error
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const fetchSnippets = useCallback(async () => {
     if (user) {
       setIsLoadingSnippets(true);
-      setFetchError(null); // Clear previous errors
+      setFetchError(null);
       try {
         const userSnippets = await getSnippetsForUser(user.uid);
         setSnippets(userSnippets);
@@ -38,36 +38,48 @@ export function SavedSnippetsManager() {
         console.error("Failed to fetch snippets:", error);
         let description = "Could not load your saved snippets. Please try again.";
         if (error.message && (error.message.toLowerCase().includes("permission denied") || error.message.toLowerCase().includes("missing or insufficient permissions"))) {
-            description = "Failed to load snippets due to permission issues. Ensure Firestore rules allow reads for authenticated users or that Firestore is enabled in your Firebase project.";
+            description = "Failed to load snippets due to permission issues. Ensure Firestore rules allow reads for authenticated users or that Firestore is enabled and rules are published in your Firebase project.";
         } else if (error.message) {
             description = error.message;
         }
-        setFetchError(description); // Set persistent error message
+        setFetchError(description);
         toast({
           variant: "destructive",
           title: "Error Fetching Snippets",
           description: description,
           duration: 9000,
         });
-        setSnippets([]); 
+        setSnippets([]);
       } finally {
         setIsLoadingSnippets(false);
       }
     } else {
-      setSnippets([]); 
-      setIsLoadingSnippets(false); 
-      setFetchError(null); // Clear errors if user is not logged in
+      setSnippets([]);
+      setIsLoadingSnippets(false);
+      setFetchError(null);
     }
   }, [user, toast]);
 
   useEffect(() => {
     fetchSnippets();
   }, [fetchSnippets]);
+  
+  useEffect(() => {
+    if (!authLoading && !user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to view and manage your saved code bricks. Your snippets are saved to your account in the cloud.",
+        action: <Button onClick={signInWithGoogle} className="animate-pop-out hover:pop-out active:pop-out">Sign In</Button>,
+        duration: 9000,
+      });
+    }
+  }, [authLoading, user, signInWithGoogle, toast]);
+
 
   const filteredSnippets = useMemo(() => {
-    if (!user) return []; 
+    if (!user) return [];
     return snippets
-      .filter(snippet => 
+      .filter(snippet =>
         snippet.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         snippet.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
         snippet.language?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -130,7 +142,7 @@ export function SavedSnippetsManager() {
           <div>
             <CardTitle className="text-2xl font-semibold">Saved Snippets</CardTitle>
             <CardDescription>
-              {user ? "Manage your code bricks saved to your account in the cloud." : "Sign in to manage and save your code bricks."}
+              {user ? "Manage your code bricks saved to your account in the cloud." : "Sign in to manage and save your code bricks to your account."}
             </CardDescription>
           </div>
         </div>
@@ -154,7 +166,7 @@ export function SavedSnippetsManager() {
           <>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <Input 
+              <Input
                 type="search"
                 placeholder="Search snippets by name, code, language, or tag..."
                 className="pl-10"

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Bug, Sparkles, Save, ShieldAlert, Loader2 } from 'lucide-react';
+import { Bug, Sparkles, Save, ShieldAlert, Loader2, LogIn } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,7 +35,7 @@ export function FixBugsForm() {
   const [isSavingOriginal, setIsSavingOriginal] = useState(false);
   const [isSavingFixed, setIsSavingFixed] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, signInWithGoogle } = useAuth();
 
   const form = useForm<FixBugsFormValues>({
     resolver: zodResolver(fixBugsSchema),
@@ -67,7 +67,13 @@ export function FixBugsForm() {
 
   const handleSaveSnippet = async (codeToSave: string, type: 'original' | 'fixed') => {
     if (!user) {
-      toast({ title: "Sign In Required", description: "Please sign in to save snippets.", variant: "destructive" });
+      toast({ 
+        title: "Authentication Required", 
+        description: `Please sign in to save the ${type} code snippet.`, 
+        variant: "destructive",
+        action: <Button onClick={signInWithGoogle} className="animate-pop-out hover:pop-out active:pop-out">Sign In</Button>,
+        duration: 7000,
+      });
       return;
     }
     const values = form.getValues();
@@ -212,27 +218,26 @@ export function FixBugsForm() {
                       )}
                     />
                   <div className="flex gap-2 flex-wrap">
-                    <Button onClick={() => handleSaveSnippet(form.getValues("codeSnippet"), 'original')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading || isSavingOriginal || isSavingFixed}>
+                    <Button onClick={() => handleSaveSnippet(form.getValues("codeSnippet"), 'original')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={isLoading || isSavingOriginal || isSavingFixed}>
                       {isSavingOriginal ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : (
                         <Save className="mr-2 h-4 w-4" />
                       )}
-                      {isSavingOriginal ? 'Saving...' : 'Save Original'}
+                      {isSavingOriginal ? 'Saving...' : (user ? 'Save Original' : 'Sign In to Save')}
                     </Button>
                     {fixResult.fixedCodeSnippet && (
-                      <Button onClick={() => handleSaveSnippet(fixResult.fixedCodeSnippet!, 'fixed')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={!user || isLoading || isSavingOriginal || isSavingFixed}>
+                      <Button onClick={() => handleSaveSnippet(fixResult.fixedCodeSnippet!, 'fixed')} variant="outline" className="animate-pop-out hover:pop-out active:pop-out" disabled={isLoading || isSavingOriginal || isSavingFixed}>
                         {isSavingFixed ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : (
                             <Save className="mr-2 h-4 w-4" />
                         )}
-                        {isSavingFixed ? 'Saving...' : 'Save Fixed'}
+                        {isSavingFixed ? 'Saving...' : (user ? 'Save Fixed' : 'Sign In to Save')}
                       </Button>
                     )}
                   </div>
                 </div>
-                {!user && <p className="text-sm text-muted-foreground">Sign in to save snippets.</p>}
               </div>
             )}
           </form>
