@@ -27,7 +27,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/context/theme-context';
-import { useToast } from '@/hooks/use-toast'; // Import useToast
+import { useToast } from '@/hooks/use-toast';
+import Footer from '@/components/footer'; // Import the new Footer
 import { LogIn, LogOut, User as UserIcon, Settings, MessageSquare, Wand2, BookOpenText, Bug, Zap, Archive, Loader2, Sun, Moon, Monitor, ClipboardCheck } from 'lucide-react';
 
 type FeatureKey = 'chat' | 'generate' | 'explain' | 'fix' | 'optimize' | 'saved' | 'test';
@@ -70,7 +71,7 @@ export function MainAppLayout() {
   const [activeFeatureKey, setActiveFeatureKey] = useState<FeatureKey>('chat');
   const { user, loading: authLoading, signInWithGoogle, signOutUser } = useAuth();
   const { theme, setTheme, resolvedTheme } = useTheme();
-  const { toast } = useToast(); // Initialize useToast
+  const { toast } = useToast(); 
   const [isClient, setIsClient] = useState(false);
   const [hasShownInitialSignInToast, setHasShownInitialSignInToast] = useState(false);
 
@@ -88,8 +89,7 @@ export function MainAppLayout() {
       });
       setHasShownInitialSignInToast(true);
     }
-    // Reset toast flag if user logs in, so it can be shown again if they log out later in the same session
-    if (user) {
+    if (user && hasShownInitialSignInToast) { // Reset if user logs in after initial toast
       setHasShownInitialSignInToast(false);
     }
   }, [isClient, authLoading, user, hasShownInitialSignInToast, signInWithGoogle, toast]);
@@ -187,7 +187,7 @@ export function MainAppLayout() {
           </SidebarMenu>
         </SidebarContent>
       </Sidebar>
-      <SidebarInset>
+      <div className="flex flex-col flex-1 min-h-svh peer-data-[variant=inset]:min-h-[calc(100svh-theme(spacing.4))] md:peer-data-[variant=inset]:m-2 md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow">
         <div className="p-2 md:p-4 border-b bg-background sticky top-0 z-10 flex items-center justify-between">
           <div className="md:hidden">
              <SidebarTrigger />
@@ -201,8 +201,8 @@ export function MainAppLayout() {
             <ActiveFeatureComponent />
           </Suspense>
         </main>
-      </SidebarInset>
+        <Footer /> 
+      </div>
     </SidebarProvider>
   );
 }
-
