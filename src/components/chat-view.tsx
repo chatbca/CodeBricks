@@ -1,13 +1,16 @@
+
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Send, User, Bot } from 'lucide-react';
+import { MessageSquare, Send, User, Bot, Sparkles } from 'lucide-react'; // Added Sparkles
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { chatWithAi } from '@/ai/flows/chat-with-ai-flow'; // New import
+import { useToast } from '@/hooks/use-toast'; // New import
 
 interface Message {
   id: string;
@@ -19,10 +22,12 @@ interface Message {
 export function ChatView() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // New state for loading
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast(); // For error notifications
 
-  const handleSendMessage = () => {
-    if (inputValue.trim() === '') return;
+  const handleSendMessage = async () => { // Made async
+    if (inputValue.trim() === '' || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -32,18 +37,37 @@ export function ChatView() {
     };
 
     setMessages(prevMessages => [...prevMessages, userMessage]);
+    const currentInput = inputValue;
     setInputValue('');
+    setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      const aiResult = await chatWithAi({ message: currentInput });
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: `I received your message: "${userMessage.text}". As a demo, I'm just echoing this back. In a real app, I'd process your query.`,
+        text: aiResult.response,
         sender: 'ai',
         timestamp: new Date(),
       };
       setMessages(prevMessages => [...prevMessages, aiResponse]);
-    }, 1000);
+    } catch (error) {
+      console.error("Error chatting with AI:", error);
+      toast({
+        variant: "destructive",
+        title: "AI Chat Error",
+        description: error instanceof Error ? error.message : "An unknown error occurred while fetching AI response.",
+      });
+      // Add a system message indicating failure
+      const errorAiResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        text: "Sorry, I couldn't process your request at the moment. Please try again.",
+        sender: 'ai',
+        timestamp: new Date(),
+      };
+      setMessages(prevMessages => [...prevMessages, errorAiResponse]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -55,7 +79,6 @@ export function ChatView() {
     }
   }, [messages]);
   
-  // Client-side check
   const [isClient, setIsClient] = useState(false);
   useEffect(() => {
     setIsClient(true);
@@ -79,7 +102,6 @@ export function ChatView() {
       </Card>
     );
   }
-
 
   return (
     <Card className="w-full animate-pop-out shadow-xl flex flex-col h-[calc(100vh-10rem)] max-h-[700px]">
@@ -116,7 +138,7 @@ export function ChatView() {
                       : "bg-muted text-muted-foreground"
                   )}
                 >
-                  <p>{msg.text}</p>
+                  <p className="whitespace-pre-wrap">{msg.text}</p> {/* Added whitespace-pre-wrap for code formatting */}
                   <p className={cn(
                       "text-xs mt-1",
                       msg.sender === 'user' ? "text-primary-foreground/70 text-right" : "text-muted-foreground/70 text-left"
@@ -140,11 +162,21 @@ export function ChatView() {
               placeholder="Type your message..."
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSendMessage()}
               className="flex-grow"
+              disabled={isLoading}
             />
-            <Button onClick={handleSendMessage} className="animate-pop-out hover:pop-out active:pop-out">
-              <Send className="h-4 w-4 mr-2" /> Send
+            <Button 
+              onClick={handleSendMessage} 
+              className="animate-pop-out hover:pop-out active:pop-out" 
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Sparkles className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              Send
             </Button>
           </div>
         </div>
