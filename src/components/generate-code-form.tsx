@@ -91,9 +91,20 @@ export function GenerateCodeForm() {
     try {
       await addSnippet(newSnippet);
       toast({ title: "Snippet Saved!", description: `"${name}" has been saved to Firestore.` });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving snippet to Firestore:", error);
-      toast({ title: "Save Failed", description: "Could not save snippet to cloud.", variant: "destructive" });
+      let description = "Could not save snippet to cloud. Please try again.";
+      if (error.message && (error.message.toLowerCase().includes("permission denied") || error.message.toLowerCase().includes("missing or insufficient permissions"))) {
+        description = "Save failed due to permission issues. Ensure Firestore rules allow writes for authenticated users or that Firestore is enabled in your Firebase project.";
+      } else if (error.message) {
+        description = error.message;
+      }
+      toast({
+        variant: "destructive",
+        title: "Save Failed",
+        description: description,
+        duration: 9000,
+      });
     }
   };
 

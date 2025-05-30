@@ -32,19 +32,27 @@ export function SavedSnippetsManager() {
       try {
         const userSnippets = await getSnippetsForUser(user.uid);
         setSnippets(userSnippets);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to fetch snippets:", error);
+        let description = "Could not load your saved snippets. Please try again.";
+        if (error.message && (error.message.toLowerCase().includes("permission denied") || error.message.toLowerCase().includes("missing or insufficient permissions"))) {
+            description = "Failed to load snippets due to permission issues. Ensure Firestore rules allow reads for authenticated users or that Firestore is enabled in your Firebase project.";
+        } else if (error.message) {
+            description = error.message;
+        }
         toast({
           variant: "destructive",
           title: "Error Fetching Snippets",
-          description: "Could not load your saved snippets from the cloud.",
+          description: description,
+          duration: 9000,
         });
-        setSnippets([]); // Clear snippets on error
+        setSnippets([]); 
       } finally {
         setIsLoadingSnippets(false);
       }
     } else {
-      setSnippets([]); // Clear snippets if user logs out
+      setSnippets([]); 
+      setIsLoadingSnippets(false); // Also set loading to false if no user
     }
   }, [user, toast]);
 
@@ -69,12 +77,19 @@ export function SavedSnippetsManager() {
       await deleteSnippetFromFirestore(id);
       setSnippets(prev => prev.filter(s => s.id !== id));
       toast({ title: "Snippet Deleted", description: "The snippet has been removed from Firestore."});
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to delete snippet:", error);
+      let description = "Could not delete the snippet. Please try again.";
+       if (error.message && (error.message.toLowerCase().includes("permission denied") || error.message.toLowerCase().includes("missing or insufficient permissions"))) {
+        description = "Delete failed due to permission issues. Ensure Firestore rules allow deletes for authenticated users.";
+      } else if (error.message) {
+        description = error.message;
+      }
       toast({
         variant: "destructive",
         title: "Deletion Failed",
-        description: "Could not delete the snippet from the cloud.",
+        description: description,
+        duration: 9000,
       });
     }
   };
