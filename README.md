@@ -1,6 +1,6 @@
 # 🧱 CodeBricks AI
 
-> A modular, LEGO-inspired AI coding assistant — build, debug, and optimize your code one brick at a time.
+> A modular, AI coding assistant — build, debug, and optimize your code one brick at a time.
 
 ---
 
